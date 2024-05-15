@@ -71,9 +71,13 @@ def run_individual_query(algo: BaseANN, X_train: numpy.array, X_test: numpy.arra
                     exec(filter_expr_func, globals())
                     filter_expr = globals()["filter_expr"]
                     expr = filter_expr(*labels)
-                start = time.time()
-                candidates = algo.query(v, count, expr)
-                total = time.time() - start
+                    start = time.time()
+                    candidates = algo.query(v, count, expr)
+                    total = time.time() - start
+                else:
+                    start = time.time()
+                    candidates = algo.query(v, count)
+                    total = time.time() - start
             candidates = [
                 (int(idx), float(metrics[distance].distance(v, X_train[idx]))) for idx in candidates  # noqa
             ]
@@ -218,7 +222,10 @@ def build_index(algo: BaseANN, X_train: numpy.ndarray, X_train_label=None, label
     """
     t0 = time.time()
     memory_usage_before = algo.get_memory_usage()
-    algo.fit(X_train, X_train_label, label_names, label_types)
+    if X_train_label is None:
+        algo.fit(X_train)
+    else:
+        algo.fit(X_train, X_train_label, label_names, label_types)
     build_time = time.time() - t0
     index_size = algo.get_memory_usage() - memory_usage_before
 
