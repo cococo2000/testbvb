@@ -1,0 +1,60 @@
+float:
+  euclidean:
+    - base_args: ["@metric", "@dimension"]
+      constructor: MilvusGPU_BF
+      disabled: false
+      docker_tag: ann-benchmarks-milvus_gpu
+      module: ann_benchmarks.algorithms.milvus_gpu
+      name: milvus-gpu-bf
+      run_groups:
+        GPU_BF:
+          args:
+            placeholder: [0]
+    - base_args: ["@metric", "@dimension"]
+      constructor: MilvusGPU_IVFFLAT
+      disabled: false
+      docker_tag: ann-benchmarks-milvus_gpu
+      module: ann_benchmarks.algorithms.milvus_gpu
+      name: milvus-gpu-ivfflat
+      run_groups:
+        GPU_IVFFLAT:
+          args:
+            nlist: [32, 64, 128, 256, 512, 1024, 2048, 4096, 8192]
+          query_args: [[1, 5, 10, 50, 100, 200, 500]]
+    - base_args: ["@metric", "@dimension"]
+      constructor: MilvusGPU_IVFPQ
+      disabled: false
+      docker_tag: ann-benchmarks-milvus_gpu
+      module: ann_benchmarks.algorithms.milvus_gpu
+      name: milvus-gpu-ivfpq
+      run_groups:
+        GPU_IVFPQ:
+          args:
+            nlist: [32, 64, 128, 256, 512, 1024, 2048, 4096, 8192]
+            m: [4, 8, 16, 32, 64]
+          query_args: [[1, 5, 10, 50, 100, 200, 500]]
+    - base_args: ["@metric", "@dimension"]
+      constructor: MilvusGPU_CAGRA
+      disabled: false
+      docker_tag: ann-benchmarks-milvus_gpu
+      module: ann_benchmarks.algorithms.milvus_gpu
+      name: milvus-gpu-cagra
+      run_groups:
+        GPU_CAGRA_1:
+          arg_groups: [{ intermediate_graph_degree: 32, graph_degree: 16, build_algo: "IVF_PQ" }]
+          query_args: [[16, 32, 64, 128], [2, 4, 8, 16, 32], [0], [0], [0]]
+        GPU_CAGRA_2:
+          arg_groups: [{ intermediate_graph_degree: 64, graph_degree: 32, build_algo: "IVF_PQ" }]
+          query_args: [[16, 32, 64, 128], [2, 4, 8, 16, 32], [0], [0], [0]]
+        GPU_CAGRA_3:
+          arg_groups: [{ intermediate_graph_degree: 128, graph_degree: 64, build_algo: "IVF_PQ" }]
+          query_args: [[16, 32, 64, 128], [2, 4, 8, 16, 32], [0], [0], [0]]
+        GPU_CAGRA_4:
+          arg_groups: [{ intermediate_graph_degree: 32, graph_degree: 16, build_algo: "NN_DESCENT" }]
+          query_args: [[16, 32, 64, 128], [2, 4, 8, 16, 32], [0], [0], [0]]
+        GPU_CAGRA_5:
+          arg_groups: [{ intermediate_graph_degree: 64, graph_degree: 32, build_algo: "NN_DESCENT" }]
+          query_args: [[16, 32, 64, 128], [2, 4, 8, 16, 32], [0], [0], [0]]
+        GPU_CAGRA_6:
+          arg_groups: [{ intermediate_graph_degree: 128, graph_degree: 64, build_algo: "NN_DESCENT" }]
+          query_args: [[16, 32, 64, 128], [2, 4, 8, 16, 32], [0], [0], [0]]
