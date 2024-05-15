@@ -267,7 +267,14 @@ function"""
         if hasattr(algo, "supports_prepared_queries"):
             algo.supports_prepared_queries()
 
-        build_time, index_size = build_index(algo, X_train, X_train_label, label_names, label_types)
+        if type == "ann":
+            build_time, index_size = build_index(algo, X_train)
+        elif type == "filter-ann":
+            build_time, index_size = build_index(algo, X_train, X_train_label, label_names, label_types)
+        elif type == "mv-ann":
+            raise NotImplementedError("Multi-vector ann datasets are not supported yet.")
+        elif type == "mm-ann":
+            raise NotImplementedError("Multi-modal ann datasets are not supported yet.")
 
         query_argument_groups = definition.query_argument_groups or [[]]  # Ensure at least one iteration
 
