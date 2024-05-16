@@ -5,7 +5,9 @@ import psutil
 import numpy
 
 class BaseANN(object):
-    """Base class/interface for Approximate Nearest Neighbors (ANN) algorithms used in benchmarking."""
+    """
+    Base class/interface for Approximate Nearest Neighbors (ANN) algorithms used in benchmarking.
+    """
 
     def done(self) -> None:
         """Clean up BaseANN once it is finished being used."""
@@ -21,17 +23,17 @@ class BaseANN(object):
 
         return psutil.Process().memory_info().rss / 1024
 
-    def fit(self, X: numpy.array) -> None:
-        """Fits the ANN algorithm to the provided data. 
+    def fit(self, embeddings: numpy.array) -> None:
+        """Fits the ANN algorithm to the provided data.
 
         Note: This is a placeholder method to be implemented by subclasses.
 
         Args:
-            X (numpy.array): The data to fit the algorithm to.
+            embeddings (numpy.array): The data to fit the algorithm to.
         """
         pass
 
-    def query(self, q: numpy.array, n: int) -> numpy.array:
+    def query(self, v: numpy.array, n: int) -> numpy.array:
         """Performs a query on the algorithm to find the nearest neighbors. 
 
         Note: This is a placeholder method to be implemented by subclasses.

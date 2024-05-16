@@ -68,8 +68,7 @@ def run_individual_query(algo: BaseANN, X_train: numpy.array, X_test: numpy.arra
             else:
                 expr = None
                 if filter_expr_func is not None:
-                    exec(filter_expr_func, globals())
-                    filter_expr = globals()["filter_expr"]
+                    filter_expr = filter_expr_func(*labels)
                     expr = filter_expr(*labels)
                     start = time.time()
                     candidates = algo.query(v, count, expr)
@@ -174,20 +173,13 @@ def load_and_transform_dataset(dataset_name: str) -> Tuple:
     """
     D, dimension = get_dataset(dataset_name)
     if "type" in D.attrs:
-        type = D.attrs["type"]
+        dataset_type = D.attrs["type"]
     else:
-        type = "ann"
-    print(f"Dataset type: {type}")
+        dataset_type = "ann"
+    print(f"Dataset type: {dataset_type}")
     distance = D.attrs["distance"]
     print(f"Distance metric: {distance}")
-    if type == "ann":
-        X_train = numpy.array(D["train"])
-        X_test = numpy.array(D["test"])
-        print(f"Got a train set of size ({X_train.shape[0]} * {dimension})")
-        print(f"Got {len(X_test)} queries")
-        train, test = dataset_transform(D)
-        return type, distance, (train, test)
-    elif type == "filter-ann":
+    if dataset_type == "filter-ann":
         X_train = numpy.array(D["train_vec"])
         X_train_label = numpy.array(D["train_label"])
         X_test = numpy.array(D["test_vec"])
@@ -195,20 +187,31 @@ def load_and_transform_dataset(dataset_name: str) -> Tuple:
         label_names = D.attrs["label_names"]
         label_types = D.attrs["label_types"]
         filter_expr_func = D.attrs["filter_expr_func"]
-        print(f"Got a train set of size ({X_train.shape[0]} * {dimension}) with {len(X_train_label[0])} labels")
+        print(f"Got a train set of size \
+              ({X_train.shape[0]} * {dimension}) with {len(X_train_label[0])} labels")
         print(f"label names: {label_names}")
         print(f"label types: {label_types}")
         print(f"filter expression function: {filter_expr_func}")
         print(f"Got {len(X_test)} queries")
-        return type, distance, (X_train, X_train_label, X_test, X_test_label, label_names, label_types, filter_expr_func)
-    elif type == "mv-ann":
+        return (
+            dataset_type,
+            distance,
+            (X_train, X_train_label, X_test, X_test_label, label_names, label_types, filter_expr_func),
+        )
+    elif dataset_type == "mv-ann":
         # multi-vector ann
         raise NotImplementedError("Multi-vector ann datasets are not supported yet.")
-    elif type == "mm-ann":
+    elif dataset_type == "mm-ann":
         # multi-modal ann
         raise NotImplementedError("Multi-modal ann datasets are not supported yet.")
     else:
-        raise ValueError(f"Unknown dataset type: {type}")
+        # dataset_type = ann
+        X_train = numpy.array(D["train"])
+        X_test = numpy.array(D["test"])
+        print(f"Got a train set of size ({X_train.shape[0]} * {dimension})")
+        print(f"Got {len(X_test)} queries")
+        train, test = dataset_transform(D)
+        return dataset_type, distance, (train, test)
 
 def build_index(algo: BaseANN, X_train: numpy.ndarray, X_train_label=None, label_names=None, label_types=None) -> Tuple:
     """Builds the ANN index for a given ANN algorithm on the training data.
@@ -258,30 +261,30 @@ function"""
     #     X_train, X_train_label, X_test, X_test_label, distance, label_names, label_types, filter_expr_func = load_and_transform_filter_dataset(dataset_name)
     # else:
     #     X_train, X_test, distance = load_and_transform_dataset(dataset_name)
-    type, distance, data = load_and_transform_dataset(dataset_name)
-    if type == "ann":
-        X_train, X_test = data
-    elif type == "filter-ann":
+    dataset_type, distance, data = load_and_transform_dataset(dataset_name)
+    if dataset_type == "filter-ann":
         X_train, X_train_label, X_test, X_test_label, label_names, label_types, filter_expr_func = data
-    elif type == "mv-ann":
+    elif dataset_type == "mv-ann":
         raise NotImplementedError("Multi-vector ann datasets are not supported yet.")
-    elif type == "mm-ann":
+    elif dataset_type == "mm-ann":
         raise NotImplementedError("Multi-modal ann datasets are not supported yet.")
     else:
-        raise ValueError(f"Unknown dataset type: {type}")
+        # dataset_type == "ann"
+        X_train, X_test = data
 
     try:
         if hasattr(algo, "supports_prepared_queries"):
             algo.supports_prepared_queries()
 
-        if type == "ann":
-            build_time, index_size = build_index(algo, X_train)
-        elif type == "filter-ann":
+        if dataset_type == "filter-ann":
             build_time, index_size = build_index(algo, X_train, X_train_label, label_names, label_types)
-        elif type == "mv-ann":
+        elif dataset_type == "mv-ann":
             raise NotImplementedError("Multi-vector ann datasets are not supported yet.")
-        elif type == "mm-ann":
+        elif dataset_type == "mm-ann":
             raise NotImplementedError("Multi-modal ann datasets are not supported yet.")
+        else:
+            # dataset_type == "ann"
+            build_time, index_size = build_index(algo, X_train)
 
         query_argument_groups = definition.query_argument_groups or [[]]  # Ensure at least one iteration
 
@@ -290,16 +293,16 @@ function"""
             if query_arguments:
                 algo.set_query_arguments(*query_arguments)
 
-            if type == "ann":
+            if dataset_type == "ann":
                 descriptor, results = run_individual_query(algo, X_train, X_test, distance, count, run_count, batch)
-            elif type == "filter-ann":
+            elif dataset_type == "filter-ann":
                 descriptor, results = run_individual_query(algo, X_train, X_test, distance, count, run_count, batch, X_test_label, filter_expr_func)
-            elif type == "mv-ann":
+            elif dataset_type == "mv-ann":
                 raise NotImplementedError("Multi-vector ann datasets are not supported yet.")
-            elif type == "mm-ann":
+            elif dataset_type == "mm-ann":
                 raise NotImplementedError("Multi-modal ann datasets are not supported yet.")
             else:
-                raise ValueError(f"Unknown dataset type: {type}")
+                descriptor, results = run_individual_query(algo, X_train, X_test, distance, count, run_count, batch)
 
             descriptor.update({
                 "build_time": build_time,
@@ -417,8 +420,7 @@ def run_docker(
     logger = logging.getLogger(f"annb.{container.short_id}")
 
     logger.info(
-        "Created container %s: CPU limit %s, mem limit %s, timeout %d, command %s"
-        % (container.short_id, cpu_limit, mem_limit, timeout, cmd)
+        "Created container %s: CPU limit %s, mem limit %s, timeout %d, command %s".format(container.short_id, cpu_limit, mem_limit, timeout, cmd)
     )
 
     def stream_logs():

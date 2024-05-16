@@ -1,56 +1,89 @@
-from time import sleep
-from pymilvus import DataType, connections, utility, Collection, CollectionSchema, FieldSchema, DataType
-import os
+""" Milvus CPU module with FLAT, IVFFLAT, IVFSQ8, IVFPQ, HNSW, SCANN index """
+import subprocess
+import numpy as np
+from pymilvus import DataType, connections, utility, Collection, CollectionSchema, FieldSchema
 
-from ..base.module import BaseANN
+from ann_benchmarks.algorithms.base.module import BaseANN
 
 
 def metric_mapping(_metric: str):
+    """
+    Mapping metric type to milvus metric type
+
+    Args:
+        _metric (str): metric type
+    
+    Returns:
+        str: milvus metric type
+    """
+    _metric = _metric.lower()
     _metric_type = {"angular": "COSINE", "euclidean": "L2"}.get(_metric, None)
     if _metric_type is None:
-        raise Exception(f"[Milvus] Not support metric type: {_metric}!!!")
+        raise ValueError(f"[Milvus] Not support metric type: {_metric}!!!")
     return _metric_type
 
 
 class Milvus(BaseANN):
-    def __init__(self, metric, dim, index_param):
+    """
+    Milvus CPU module
+    """
+    def __init__(
+            self,
+            metric : str,
+            dim : int
+            ):
         self._metric = metric
         self._dim = dim
         self._metric_type = metric_mapping(self._metric)
         self.start_milvus()
         self.connects = connections
-        max_trys = 10
-        for try_num in range(max_trys):
-            try:
-                self.connects.connect("default", host='localhost', port='19530')
-                break
-            except Exception as e:
-                if try_num == max_trys - 1:
-                    raise Exception(f"[Milvus] connect to milvus failed: {e}!!!")
-                print(f"[Milvus] try to connect to milvus again...")
-                sleep(1)
+        self.connects.connect("default", host='localhost', port='19530', timeout=30)
         print(f"[Milvus] Milvus version: {utility.get_server_version()}")
         self.collection_name = "test_milvus"
+        self.collection = None
+        self.num_labels = 0
+        self.search_params = {
+            "metric_type": self._metric_type
+        }
+        self.name = f"Milvus metric:{self._metric}"
         if utility.has_collection(self.collection_name):
             print(f"[Milvus] collection {self.collection_name} already exists, drop it...")
             utility.drop_collection(self.collection_name)
 
-    def start_milvus(self):
+    def start_milvus(self) -> None:
+        """
+        Start milvus cpu standalone docker compose
+        """
         try:
-            os.system("docker compose down")
-            os.system("docker compose up -d")
+            subprocess.run(["docker", "compose", "down"], check=True)
+            subprocess.run(["docker", "compose", "up", "-d"], check=True)
             print("[Milvus] docker compose up successfully!!!")
-        except Exception as e:
+        except subprocess.CalledProcessError as e:
             print(f"[Milvus] docker compose up failed: {e}!!!")
 
-    def stop_milvus(self):
+    def stop_milvus(self) -> None:
+        """
+        Stop milvus cpu standalone docker compose
+        """
         try:
-            os.system("docker compose down")
+            subprocess.run(["docker", "compose", "down"], check=True)
             print("[Milvus] docker compose down successfully!!!")
-        except Exception as e:
+        except subprocess.CalledProcessError as e:
             print(f"[Milvus] docker compose down failed: {e}!!!")
 
-    def create_collection(self, num_labels=0, label_names=None, label_types=None):
+    def create_collection(
+            self,
+            num_labels : int = 0,
+            label_names : list[str] | None = None,
+            label_types : list[str] | None = None
+            ) -> None:
+        """
+        Create collection with schema
+        Args:
+            num_labels (int): number of labels
+            label_names (list[str]): label names
+            label_types (list[str]): label types
+        """
         filed_id = FieldSchema(
             name="id",
             dtype=DataType.INT64,
@@ -101,35 +134,55 @@ class Milvus(BaseANN):
         )
         print(f"[Milvus] Create collection {self.collection.describe()} successfully!!!")
 
-    def insert(self, X, labels=None):
-        # insert data
+    def insert(
+            self,
+            embeddings : np.ndarray,
+            labels : np.ndarray | None = None
+            ) -> None:
+        """
+        Insert embeddings and labels into collection
+
+        Args:
+            embeddings (np.ndarray): embeddings
+            labels (np.ndarray): labels
+        """
         batch_size = 1000
         if labels is not None:
             num_labels = len(labels[0])
-            print(f"[Milvus] Insert {len(X)} data with {num_labels} labels into collection {self.collection_name}...")
+            print(f"[Milvus] Insert {len(embeddings)} data with {num_labels} labels \
+                  into collection {self.collection_name}...")
         else:
-            print(f"[Milvus] Insert {len(X)} data into collection {self.collection_name}...")
-        for i in range(0, len(X), batch_size):
-            batch_data = X[i: min(i + batch_size, len(X))]
+            print(f"[Milvus] Insert {len(embeddings)} data \
+                  into collection {self.collection_name}...")
+        for i in range(0, len(embeddings), batch_size):
+            batch_data = embeddings[i : min(i + batch_size, len(embeddings))]
             entities = [
-                [i for i in range(i, min(i + batch_size, len(X)))],
+                [i for i in range(i, min(i + batch_size, len(embeddings)))],
                 batch_data.tolist()
-            ]
+                ]
             if labels is not None:
-                batch_labels = labels[i: min(i + batch_size, len(X))]
+                batch_labels = labels[i : min(i + batch_size, len(embeddings))]
                 for j in range(num_labels):
                     entities.append(
                         [l[j] for l in batch_labels]
                     )
             self.collection.insert(entities)
         self.collection.flush()
-        print(f"[Milvus] {self.collection.num_entities} data has been inserted into collection {self.collection_name}!!!")
+        print(f"[Milvus] {self.collection.num_entities} data has been \
+              inserted into collection {self.collection_name}!!!")
 
-    def get_index_param(self):
+    def get_index_param(self) -> dict:
+        """
+        Get index parameters
+
+        Note: This is a placeholder method to be implemented by subclasses.
+        """
         raise NotImplementedError()
 
-    def create_index(self):
-        # create index
+    def create_index(self) -> None:
+        """
+        Create index for collection
+        """
         print(f"[Milvus] Create index for collection {self.collection_name}...")
         self.collection.create_index(
             field_name = "vector",
@@ -145,25 +198,59 @@ class Milvus(BaseANN):
             collection_name = self.collection_name,
             index_name = "vector_index"
         )
-        print(f"[Milvus] Create index {index.to_dict()} {index_progress} for collection {self.collection_name} successfully!!!")
+        print(f"[Milvus] Create index {index.to_dict()} {index_progress} \
+              for collection {self.collection_name} successfully!!!")
 
-    def load_collection(self):
-        # load collection
+    def load_collection(self) -> None:
+        """
+        Load collection
+        """
         print(f"[Milvus] Load collection {self.collection_name}...")
         self.collection.load()
         utility.wait_for_loading_complete(self.collection_name)
         print(f"[Milvus] Load collection {self.collection_name} successfully!!!")
 
-    def fit(self, X, labels=None, label_names=None, label_types=None):
+    def fit(
+            self,
+            embeddings : np.array,
+            labels : np.ndarray | None = None,
+            label_names : list[str] | None = None,
+            label_types : list[str] | None = None
+            ) -> None:
+        """
+        Fit the ANN algorithm to the provided data
+
+        Args:
+            embeddings (np.array): embeddings
+            labels (np.array): labels
+            label_names (list[str]): label names
+            label_types (list[str]): label types
+        """
         if labels is not None:
             self.create_collection(len(labels[0]), label_names, label_types)
         else:
             self.create_collection()
-        self.insert(X, labels)
+        self.insert(embeddings, labels)
         self.create_index()
         self.load_collection()
 
-    def query(self, v, n, expr=None):
+    def query(
+            self,
+            v : np.array,
+            n : int,
+            expr : str | None = None
+            ) -> list[int]:
+        """
+        Performs a query on the algorithm to find the nearest neighbors
+
+        Args:
+            v (np.array): The vector to find the nearest neighbors of.
+            n (int): The number of nearest neighbors to return.
+            expr (str): The search expression
+        
+        Returns:
+            list[int]: An array of indices representing the nearest neighbors.
+        """
         results = self.collection.search(
             data = [v],
             anns_field = "vector",
@@ -175,15 +262,23 @@ class Milvus(BaseANN):
         ids = [r.entity.get("id") for r in results[0]]
         return ids
 
-    def done(self):
+    def done(self) -> None:
+        """
+        Release resources
+        """
         self.collection.release()
         utility.drop_collection(self.collection_name)
         self.stop_milvus()
 
 
 class MilvusFLAT(Milvus):
-    def __init__(self, metric, dim, index_param):
-        super().__init__(metric, dim, index_param)
+    """ Milvus with FLAT index"""
+    def __init__(
+            self,
+            metric : str,
+            dim : int
+            ):
+        super().__init__(metric, dim)
         self.name = f"MilvusFLAT metric:{self._metric}"
 
     def get_index_param(self):
@@ -192,7 +287,12 @@ class MilvusFLAT(Milvus):
             "metric_type": self._metric_type
         }
 
-    def query(self, v, n, expr=None):
+    def query(
+            self,
+            v : np.ndarray,
+            n : int,
+            expr : str | None = None
+            ) -> list[int]:
         self.search_params = {
             "metric_type": self._metric_type,
         }
@@ -209,8 +309,14 @@ class MilvusFLAT(Milvus):
 
 
 class MilvusIVFFLAT(Milvus):
-    def __init__(self, metric, dim, index_param):
-        super().__init__(metric, dim, index_param)
+    """ Milvus with IVF_FLAT index """
+    def __init__(
+            self,
+            metric : str,
+            dim : int,
+            index_param: dict
+            ):
+        super().__init__(metric, dim)
         self._index_nlist = index_param.get("nlist", None)
 
     def get_index_param(self):
@@ -222,17 +328,33 @@ class MilvusIVFFLAT(Milvus):
             "metric_type": self._metric_type
         }
 
-    def set_query_arguments(self, nprobe):
+    def set_query_arguments(
+            self,
+            nprobe : int
+        ) -> None:
+        """
+        Set query arguments for IVF_FLAT index
+
+        Args:
+            nprobe (int): nprobe
+        """
         self.search_params = {
             "metric_type": self._metric_type,
             "params": {"nprobe": nprobe}
         }
-        self.name = f"MilvusIVFFLAT metric:{self._metric}, index_nlist:{self._index_nlist}, search_nprobe:{nprobe}"
+        self.name = f"MilvusIVFFLAT metric:{self._metric}, \
+            index_nlist:{self._index_nlist}, search_nprobe:{nprobe}"
 
 
 class MilvusIVFSQ8(Milvus):
-    def __init__(self, metric, dim, index_param):
-        super().__init__(metric, dim, index_param)
+    """ Milvus with IVF_SQ8 index """
+    def __init__(
+            self,
+            metric : str,
+            dim : int,
+            index_param: dict
+            ):
+        super().__init__(metric, dim)
         self._index_nlist = index_param.get("nlist", None)
 
     def get_index_param(self):
@@ -244,17 +366,33 @@ class MilvusIVFSQ8(Milvus):
             "metric_type": self._metric_type
         }
 
-    def set_query_arguments(self, nprobe):
+    def set_query_arguments(
+            self,
+            nprobe : int
+        ) -> None:
+        """
+        Set query arguments for IVF_SQ8 index
+
+        Args:
+            nprobe (int): nprobe
+        """
         self.search_params = {
             "metric_type": self._metric_type,
             "params": {"nprobe": nprobe}
         }
-        self.name = f"MilvusIVFSQ8 metric:{self._metric}, index_nlist:{self._index_nlist}, search_nprobe:{nprobe}"
+        self.name = f"MilvusIVFSQ8 metric:{self._metric}, \
+            index_nlist:{self._index_nlist}, search_nprobe:{nprobe}"
 
 
 class MilvusIVFPQ(Milvus):
-    def __init__(self, metric, dim, index_param):
-        super().__init__(metric, dim, index_param)
+    """ Milvus with IVF_PQ index """
+    def __init__(
+            self,
+            metric : str,
+            dim : int,
+            index_param: dict
+            ):
+        super().__init__(metric, dim)
         self._index_nlist = index_param.get("nlist", None)
         self._index_m = index_param.get("m", None)
         self._index_nbits = index_param.get("nbits", None)
@@ -270,18 +408,34 @@ class MilvusIVFPQ(Milvus):
             },
             "metric_type": self._metric_type
         }
-    
-    def set_query_arguments(self, nprobe):
+
+    def set_query_arguments(
+            self,
+            nprobe : int
+            ) -> None:
+        """
+        Set query arguments for IVF_PQ index
+
+        Args:
+            nprobe (int): nprobe
+        """
         self.search_params = {
             "metric_type": self._metric_type,
             "params": {"nprobe": nprobe}
         }
-        self.name = f"MilvusIVFPQ metric:{self._metric}, index_nlist:{self._index_nlist}, search_nprobe:{nprobe}"
+        self.name = f"MilvusIVFPQ metric:{self._metric}, \
+            index_nlist:{self._index_nlist}, search_nprobe:{nprobe}"
 
 
 class MilvusHNSW(Milvus):
-    def __init__(self, metric, dim, index_param):
-        super().__init__(metric, dim, index_param)
+    """ Milvus with HNSW index """
+    def __init__(
+            self,
+            metric : str,
+            dim : int,
+            index_param: dict
+            ):
+        super().__init__(metric, dim)
         self._index_m = index_param.get("M", None)
         self._index_ef = index_param.get("efConstruction", None)
 
@@ -295,17 +449,33 @@ class MilvusHNSW(Milvus):
             "metric_type": self._metric_type
         }
 
-    def set_query_arguments(self, ef):
+    def set_query_arguments(
+            self,
+            ef : int
+            ) -> None:
+        """
+        Set query arguments for HNSW index
+
+        Args:
+            ef (int): ef
+        """
         self.search_params = {
             "metric_type": self._metric_type,
             "params": {"ef": ef}
         }
-        self.name = f"MilvusHNSW metric:{self._metric}, index_M:{self._index_m}, index_ef:{self._index_ef}, search_ef={ef}"
+        self.name = f"MilvusHNSW metric:{self._metric}, \
+            index_M:{self._index_m}, index_ef:{self._index_ef}, search_ef={ef}"
 
 
 class MilvusSCANN(Milvus):
-    def __init__(self, metric, dim, index_param):
-        super().__init__(metric, dim, index_param)
+    """ Milvus with SCANN index """
+    def __init__(
+            self,
+            metric : str,
+            dim : int,
+            index_param: dict
+            ):
+        super().__init__(metric, dim)
         self._index_nlist = index_param.get("nlist", None)
 
     def get_index_param(self):
@@ -317,9 +487,19 @@ class MilvusSCANN(Milvus):
             "metric_type": self._metric_type
         }
 
-    def set_query_arguments(self, nprobe):
+    def set_query_arguments(
+            self,
+            nprobe : int
+        ) -> None:
+        """
+        Set query arguments for IVF_SQ8 index
+
+        Args:
+            nprobe (int): nprobe
+        """
         self.search_params = {
             "metric_type": self._metric_type,
             "params": {"nprobe": nprobe}
         }
-        self.name = f"MilvusSCANN metric:{self._metric}, index_nlist:{self._index_nlist}, search_nprobe:{nprobe}"
+        self.name = f"MilvusSCANN metric:{self._metric}, \
+            index_nlist:{self._index_nlist}, search_nprobe:{nprobe}"
