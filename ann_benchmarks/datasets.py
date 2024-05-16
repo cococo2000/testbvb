@@ -407,7 +407,8 @@ def sift_hamming(out_fn: str, fn: str) -> None:
     import tarfile
 
     local_fn = fn + ".tar.gz"
-    url = "http://web.stanford.edu/~maxlam/word_vectors/compressed/%s/%s.tar.gz" % (path, fn)  # noqa
+    # url = "http://web.stanford.edu/~maxlam/word_vectors/compressed/%s/%s.tar.gz" % (path, fn)  # noqa
+    url = "http://sss.projects.itu.dk/ann-benchmarks/datasets/%s.tar.gz" % fn
     download(url, local_fn)
     print("parsing vectors in %s..." % local_fn)
     with tarfile.open(local_fn, "r:gz") as t:
@@ -417,23 +418,6 @@ def sift_hamming(out_fn: str, fn: str) -> None:
         for i in range(n_words):
             X[i] = numpy.array([float(z) > 0 for z in next(f).strip().split()[1:]], dtype=numpy.bool_)
 
-        X_train, X_test = train_test_split(X, test_size=1000)
-        write_output(X_train, X_test, out_fn, "hamming", "bit")
-
-
-def sift_hamming(out_fn: str, fn: str) -> None:
-    import tarfile
-
-    local_fn = fn + ".tar.gz"
-    url = "http://sss.projects.itu.dk/ann-benchmarks/datasets/%s.tar.gz" % fn
-    download(url, local_fn)
-    print("parsing vectors in %s..." % local_fn)
-    with tarfile.open(local_fn, "r:gz") as t:
-        f = t.extractfile(fn)
-        lines = f.readlines()
-        X = numpy.zeros((len(lines), 256), dtype=numpy.bool_)
-        for i, line in enumerate(lines):
-            X[i] = numpy.array([int(x) > 0 for x in line.decode().strip()], dtype=numpy.bool_)
         X_train, X_test = train_test_split(X, test_size=1000)
         write_output(X_train, X_test, out_fn, "hamming", "bit")
 
@@ -565,14 +549,13 @@ def movielens20m(out_fn: str) -> None:
 def dbpedia_entities_openai_1M(out_fn, n = None):
     from sklearn.model_selection import train_test_split
     from datasets import load_dataset
-    import numpy as np
 
     data = load_dataset("KShivendu/dbpedia-entities-openai-1M", split="train")
     if n is not None and n >= 100_000:
         data = data.select(range(n))
 
     embeddings = data.to_pandas()['openai'].to_numpy()
-    embeddings = np.vstack(embeddings).reshape((-1, 1536))
+    embeddings = numpy.vstack(embeddings).reshape((-1, 1536))
 
     X_train, X_test = train_test_split(embeddings, test_size=10_000, random_state=42)
 
@@ -609,10 +592,9 @@ DATASETS: Dict[str, Callable[[str], None]] = {
     "sift-128-euclidean": sift,
     "nytimes-256-angular": lambda out_fn: nytimes(out_fn, 256),
     "nytimes-16-angular": lambda out_fn: nytimes(out_fn, 16),
-    "word2bits-800-hamming": lambda out_fn: word2bits(out_fn, "400K", "w2b_bitlevel1_size800_vocab400K"),
     "lastfm-64-dot": lambda out_fn: lastfm(out_fn, 64),
     "sift-256-hamming": lambda out_fn: sift_hamming(out_fn, "sift.hamming.256"),
-    "kosarak-jaccard": lambda out_fn: kosarak(out_fn),
+    "kosarak-jaccard": kosarak,
     "movielens1m-jaccard": movielens1m,
     "movielens10m-jaccard": movielens10m,
     "movielens20m-jaccard": movielens20m,
