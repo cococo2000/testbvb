@@ -134,7 +134,7 @@ class Milvus(BaseANN):
         )
         print(f"[Milvus] Create collection {self.collection.describe()} successfully!!!")
 
-    def insert(
+    def insert_data(
             self,
             embeddings : np.ndarray,
             labels : np.ndarray | None = None
@@ -149,11 +149,9 @@ class Milvus(BaseANN):
         batch_size = 1000
         if labels is not None:
             num_labels = len(labels[0])
-            print(f"[Milvus] Insert {len(embeddings)} data with {num_labels} labels \
-                  into collection {self.collection_name}...")
+            print(f"[Milvus] Insert {len(embeddings)} data with {num_labels} labels  into collection {self.collection_name}...")
         else:
-            print(f"[Milvus] Insert {len(embeddings)} data \
-                  into collection {self.collection_name}...")
+            print(f"[Milvus] Insert {len(embeddings)} data into collection {self.collection_name}...")
         for i in range(0, len(embeddings), batch_size):
             batch_data = embeddings[i : min(i + batch_size, len(embeddings))]
             entities = [
@@ -170,6 +168,28 @@ class Milvus(BaseANN):
         self.collection.flush()
         print(f"[Milvus] {self.collection.num_entities} data has been inserted into collection {self.collection_name}!!!")
 
+    def load_data(
+            self,
+            embeddings: np.array,
+            labels: np.ndarray | None = None,
+            label_names: list[str] | None = None,
+            label_types: list[str] | None = None,
+            ) -> None:
+        """
+        Fit the ANN algorithm to the provided data
+
+        Args:
+            embeddings (np.array): embeddings
+            labels (np.array): labels
+            label_names (list[str]): label names
+            label_types (list[str]): label types
+        """
+        if labels is not None:
+            self.create_collection(len(labels[0]), label_names, label_types)
+        else:
+            self.create_collection()
+        self.insert_data(embeddings, labels)
+
     def get_index_param(self) -> dict:
         """
         Get index parameters
@@ -177,6 +197,15 @@ class Milvus(BaseANN):
         Note: This is a placeholder method to be implemented by subclasses.
         """
         raise NotImplementedError()
+
+    def load_collection(self) -> None:
+        """
+        Load collection
+        """
+        print(f"[Milvus] Load collection {self.collection_name}...")
+        self.collection.load()
+        utility.wait_for_loading_complete(self.collection_name)
+        print(f"[Milvus] Load collection {self.collection_name} successfully!!!")
 
     def create_index(self) -> None:
         """
@@ -198,38 +227,6 @@ class Milvus(BaseANN):
             index_name = "vector_index"
         )
         print(f"[Milvus] Create index {index.to_dict()} {index_progress} for collection {self.collection_name} successfully!!!")
-
-    def load_collection(self) -> None:
-        """
-        Load collection
-        """
-        print(f"[Milvus] Load collection {self.collection_name}...")
-        self.collection.load()
-        utility.wait_for_loading_complete(self.collection_name)
-        print(f"[Milvus] Load collection {self.collection_name} successfully!!!")
-
-    def fit(
-            self,
-            embeddings : np.array,
-            labels : np.ndarray | None = None,
-            label_names : list[str] | None = None,
-            label_types : list[str] | None = None
-            ) -> None:
-        """
-        Fit the ANN algorithm to the provided data
-
-        Args:
-            embeddings (np.array): embeddings
-            labels (np.array): labels
-            label_names (list[str]): label names
-            label_types (list[str]): label types
-        """
-        if labels is not None:
-            self.create_collection(len(labels[0]), label_names, label_types)
-        else:
-            self.create_collection()
-        self.insert(embeddings, labels)
-        self.create_index()
         self.load_collection()
 
     def query(

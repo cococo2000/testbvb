@@ -52,14 +52,17 @@ def run_individual_query(
     )
 
     best_search_time = float("inf")
+    if filter_expr_func is not None:
+        exec(filter_expr_func, globals())
+        filter_expr = globals()["filter_expr"]
     for i in range(run_count):
         print(f"Run {i + 1}/{run_count}...")
         # a bit dumb but can't be a scalar since of Python's scoping rules
         n_items_processed = [0]
 
         def single_query(
-                v: np.array,
-                labels: Optional[np.array] = None,
+                v: np.ndarray,
+                labels: Optional[np.ndarray] = None,
                 ) -> Tuple[float, List[Tuple[int, float]]]:
             """
             Executes a single query on an instantiated, ANN algorithm.
@@ -81,15 +84,10 @@ def run_individual_query(
             else:
                 expr = None
                 if filter_expr_func is not None:
-                    filter_expr = filter_expr_func(*labels)
                     expr = filter_expr(*labels)
-                    start = time.time()
-                    candidates = algo.query(v, count, expr)
-                    total = time.time() - start
-                else:
-                    start = time.time()
-                    candidates = algo.query(v, count)
-                    total = time.time() - start
+                start = time.time()
+                candidates = algo.query(v, count, expr)
+                total = time.time() - start
             candidates = [
                 (int(idx), float(metrics[distance].distance(v, X_train[idx])))
                     for idx in candidates
@@ -102,7 +100,10 @@ def run_individual_query(
                       but count is only {count})")
             return (total, candidates)
 
-        def batch_query(X: np.array, labels=None) -> List[Tuple[float, List[Tuple[int, float]]]]:
+        def batch_query(
+                X: np.ndarray,
+                X_labels : np.ndarray | None = None
+                ) -> List[Tuple[float, List[Tuple[int, float]]]]:
             """
             Executes a batch of queries on an instantiated, ANN algorithm.
 
@@ -115,19 +116,18 @@ def run_individual_query(
                     2. Result pairs consisting of (point index, distance to candidate data)
             """
             # TODO: consider using a dataclass to represent return value.
+            
             if prepared_queries:
                 algo.prepare_batch_query(X, count)
                 start = time.time()
                 algo.run_batch_query()
                 total = time.time() - start
             else:
-                expr = None
+                exprs = None
                 if filter_expr_func is not None:
-                    filter_expr = filter_expr_func(*labels)
-                    expr = filter_expr(*labels)
+                    exprs = [filter_expr(*labels) for labels in X_labels]
                 start = time.time()
-                # TODO: batch query with filter expression
-                algo.batch_query(X, count)
+                algo.batch_query(X, count, exprs)
                 total = time.time() - start
             results = algo.get_batch_results()
             if hasattr(algo, "get_batch_latencies"):
@@ -227,13 +227,41 @@ def load_and_transform_dataset(dataset_name: str) -> Tuple:
         train, test = dataset_transform(D)
         return dataset_type, distance, (train, test)
 
-def build_index(
-        algo: BaseANN,
-        X_train : np.ndarray,
-        X_train_label : np.ndarray | None = None,
-        label_names : List[str] | None = None,
-        label_types : List[str] | None = None
-        ) -> Tuple:
+
+def insert_data(
+    algo: BaseANN,
+    X_train: np.ndarray,
+    X_train_label: np.ndarray | None = None,
+    label_names: List[str] | None = None,
+    label_types: List[str] | None = None,
+) -> Tuple:
+    """
+    Inserts the training data into the database of the ANN algorithm.
+
+    Args:
+        algo (BaseANN): The algorithm instance.
+        X_train (np.array): The training data.
+        X_train_label (np.array): The training data labels.
+        label_names (List[str]): The names of the labels.
+        label_types (List[str]): The types of the labels.
+
+    Returns:
+        Tuple: The insert time and memory usage.
+    """
+    t0 = time.time()
+    memory_usage_before = algo.get_memory_usage()
+    algo.load_data(X_train, X_train_label, label_names, label_types)
+    insert_time = time.time() - t0
+    memory_usage_after = algo.get_memory_usage()
+    data_size = memory_usage_after - memory_usage_before
+
+    print("Inserted data in", insert_time)
+    print("Memory usage: ", data_size)
+
+    return insert_time, data_size
+
+
+def build_index(algo: BaseANN) -> Tuple:
     """
     Builds the ANN index for a given ANN algorithm on the training data.
 
@@ -246,14 +274,11 @@ def build_index(
     """
     t0 = time.time()
     memory_usage_before = algo.get_memory_usage()
-    if X_train_label is None:
-        algo.fit(X_train)
-    else:
-        algo.fit(X_train, X_train_label, label_names, label_types)
+    algo.create_index()
     build_time = time.time() - t0
     index_size = algo.get_memory_usage() - memory_usage_before
 
-    print("Built index in", build_time)
+    print("Built index in ", build_time)
     print("Index size: ", index_size)
 
     return build_time, index_size
@@ -298,15 +323,19 @@ def run(
     if hasattr(algo, "supports_prepared_queries"):
         algo.supports_prepared_queries()
 
+    # Insert data
     if dataset_type == "filter-ann":
-        build_time, index_size = build_index(algo, X_train, X_train_label, label_names, label_types)
+        insert_time, data_size = insert_data(algo, X_train, X_train_label, label_names, label_types)
     elif dataset_type == "mv-ann":
         raise NotImplementedError("Multi-vector ann datasets are not supported yet.")
     elif dataset_type == "mm-ann":
         raise NotImplementedError("Multi-modal ann datasets are not supported yet.")
     else:
         # dataset_type == "ann"
-        build_time, index_size = build_index(algo, X_train)
+        insert_time, data_size = insert_data(algo, X_train)
+
+    # Create or build index
+    index_time, index_size = build_index(algo)
 
     query_argument_groups = definition.query_argument_groups or [[]]  # Ensure at least one iteration
 
@@ -326,7 +355,9 @@ def run(
         else:
             descriptor, results = run_individual_query(algo, X_train, X_test, distance, count, run_count, batch)
         descriptor.update({
-            "build_time": build_time,
+            "insert_time": insert_time,
+            "data_size": data_size,
+            "index_time": index_time,
             "index_size": index_size,
             "algo": definition.algorithm,
             "dataset": dataset_name

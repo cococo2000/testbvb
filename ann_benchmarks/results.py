@@ -63,7 +63,7 @@ def store_results(dataset_name: str, count: int, definition: Definition, query_a
         times = f.create_dataset("times", (len(results),), "f")
         neighbors = f.create_dataset("neighbors", (len(results), count), "i")
         distances = f.create_dataset("distances", (len(results), count), "f")
-        
+
         for i, (time, ds) in enumerate(results):
             times[i] = time
             neighbors[i] = [n for n, d in ds] + [-1] * (count - len(ds))
