@@ -275,13 +275,13 @@ def build_index(algo: BaseANN) -> Tuple:
     t0 = time.time()
     memory_usage_before = algo.get_memory_usage()
     algo.create_index()
-    build_time = time.time() - t0
+    index_time = time.time() - t0
     index_size = algo.get_memory_usage() - memory_usage_before
 
-    print("Built index in ", build_time)
+    print("Built index in ", index_time)
     print("Index size: ", index_size)
 
-    return build_time, index_size
+    return index_time, index_size
 
 
 def run(
@@ -359,6 +359,7 @@ def run(
             "data_size": data_size,
             "index_time": index_time,
             "index_size": index_size,
+            "build_time": insert_time + index_time,
             "algo": definition.algorithm,
             "dataset": dataset_name
         })

@@ -29,3 +29,5 @@ if __name__ == "__main__":
             writer.writeheader()
             for res in dfs:
                 writer.writerow(res)
+    else:
+        print("No results found")
