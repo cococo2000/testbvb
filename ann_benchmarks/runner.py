@@ -8,7 +8,7 @@ from typing import Dict, Optional, Tuple, List, Union
 
 import colors
 import docker
-import numpy
+import numpy as np
 import psutil
 
 from ann_benchmarks.algorithms.base.module import BaseANN
@@ -19,20 +19,29 @@ from .distance import dataset_transform, metrics
 from .results import store_results
 
 
-def run_individual_query(algo: BaseANN, X_train: numpy.array, X_test: numpy.array, 
-                         distance: str, count: int, run_count: int, batch: bool, 
-                         X_test_label=None, filter_expr_func=None) -> Tuple[dict, list]:
-    """Run a search query using the provided algorithm and report the results.
+def run_individual_query(
+        algo: BaseANN,
+        X_train: np.array,
+        X_test: np.array, 
+        distance: str,
+        count: int,
+        run_count: int,
+        batch: bool,
+        X_test_label : np.ndarray | None = None,
+        filter_expr_func : str | None = None
+        ) -> Tuple[dict, list]:
+    """
+    Run a search query using the provided algorithm and report the results.
 
     Args:
         algo (BaseANN): An instantiated ANN algorithm.
-        X_train (numpy.array): The training data.
-        X_test (numpy.array): The testing data.
+        X_train (np.array): The training data.
+        X_test (np.array): The testing data.
         distance (str): The type of distance metric to use.
         count (int): The number of nearest neighbors to return.
         run_count (int): The number of times to run the query.
         batch (bool): Flag to indicate whether to run in batch mode or not.
-        X_test_label (numpy.array): The labels for the testing data.
+        X_test_label (np.array): The labels for the testing data.
         filter_expr_func (str): The function to generate the filter expression.
 
     Returns:
@@ -44,20 +53,24 @@ def run_individual_query(algo: BaseANN, X_train: numpy.array, X_test: numpy.arra
 
     best_search_time = float("inf")
     for i in range(run_count):
-        print("Run %d/%d..." % (i + 1, run_count))
+        print(f"Run {i + 1}/{run_count}...")
         # a bit dumb but can't be a scalar since of Python's scoping rules
         n_items_processed = [0]
 
-        def single_query(v: numpy.array, labels=None) -> Tuple[float, List[Tuple[int, float]]]:
-            """Executes a single query on an instantiated, ANN algorithm.
+        def single_query(
+                v: np.array,
+                labels: Optional[np.array] = None,
+                ) -> Tuple[float, List[Tuple[int, float]]]:
+            """
+            Executes a single query on an instantiated, ANN algorithm.
 
             Args:
-                v (numpy.array): Vector to query.
+                v (np.array): Vector to query.
 
             Returns:
                 List[Tuple[float, List[Tuple[int, float]]]]: Tuple containing
                     1. Total time taken for each query 
-                    2. Result pairs consisting of (point index, distance to candidate data )
+                    2. Result pairs consisting of (point index, distance to candidate data)
             """
             if prepared_queries:
                 algo.prepare_query(v, count)
@@ -78,28 +91,28 @@ def run_individual_query(algo: BaseANN, X_train: numpy.array, X_test: numpy.arra
                     candidates = algo.query(v, count)
                     total = time.time() - start
             candidates = [
-                (int(idx), float(metrics[distance].distance(v, X_train[idx]))) for idx in candidates  # noqa
+                (int(idx), float(metrics[distance].distance(v, X_train[idx])))
+                    for idx in candidates
             ]
             n_items_processed[0] += 1
             if n_items_processed[0] % 1000 == 0:
-                print("Processed %d/%d queries..." % (n_items_processed[0], len(X_test)))
+                print(f"Processed {n_items_processed[0]}/{len(X_test)} queries...")
             if len(candidates) > count:
-                print(
-                    "warning: algorithm %s returned %d results, but count"
-                    " is only %d)" % (algo, len(candidates), count)
-                )
+                print(f"warning: algorithm {algo} returned {len(candidates)} results, \
+                      but count is only {count})")
             return (total, candidates)
 
-        def batch_query(X: numpy.array, labels=None) -> List[Tuple[float, List[Tuple[int, float]]]]:
-            """Executes a batch of queries on an instantiated, ANN algorithm.
+        def batch_query(X: np.array, labels=None) -> List[Tuple[float, List[Tuple[int, float]]]]:
+            """
+            Executes a batch of queries on an instantiated, ANN algorithm.
 
             Args:
-                X (numpy.array): Array containing multiple vectors to query.
+                X (np.array): Array containing multiple vectors to query.
 
             Returns:
                 List[Tuple[float, List[Tuple[int, float]]]]: List of tuples, each containing
                     1. Total time taken for each query 
-                    2. Result pairs consisting of (point index, distance to candidate data )
+                    2. Result pairs consisting of (point index, distance to candidate data)
             """
             # TODO: consider using a dataclass to represent return value.
             if prepared_queries:
@@ -110,8 +123,7 @@ def run_individual_query(algo: BaseANN, X_train: numpy.array, X_test: numpy.arra
             else:
                 expr = None
                 if filter_expr_func is not None:
-                    exec(filter_expr_func, globals())
-                    filter_expr = globals()["filter_expr"]
+                    filter_expr = filter_expr_func(*labels)
                     expr = filter_expr(*labels)
                 start = time.time()
                 # TODO: batch query with filter expression
@@ -123,7 +135,8 @@ def run_individual_query(algo: BaseANN, X_train: numpy.array, X_test: numpy.arra
             else:
                 batch_latencies = [total / float(len(X))] * len(X)
             candidates = [
-                [(int(idx), float(metrics[distance].distance(v, X_train[idx]))) for idx in single_results]  # noqa
+                [(int(idx), float(metrics[distance].distance(v, X_train[idx])))
+                 for idx in single_results]  # noqa
                 for v, single_results in zip(X, results)
             ]
             return [(latency, v) for latency, v in zip(batch_latencies, candidates)]
@@ -180,10 +193,10 @@ def load_and_transform_dataset(dataset_name: str) -> Tuple:
     distance = D.attrs["distance"]
     print(f"Distance metric: {distance}")
     if dataset_type == "filter-ann":
-        X_train = numpy.array(D["train_vec"])
-        X_train_label = numpy.array(D["train_label"])
-        X_test = numpy.array(D["test_vec"])
-        X_test_label = numpy.array(D["test_label"])
+        X_train = np.array(D["train_vec"])
+        X_train_label = np.array(D["train_label"])
+        X_test = np.array(D["test_vec"])
+        X_test_label = np.array(D["test_label"])
         label_names = D.attrs["label_names"]
         label_types = D.attrs["label_types"]
         filter_expr_func = D.attrs["filter_expr_func"]
@@ -196,7 +209,8 @@ def load_and_transform_dataset(dataset_name: str) -> Tuple:
         return (
             dataset_type,
             distance,
-            (X_train, X_train_label, X_test, X_test_label, label_names, label_types, filter_expr_func),
+            (X_train, X_train_label, X_test, X_test_label,
+             label_names, label_types, filter_expr_func),
         )
     elif dataset_type == "mv-ann":
         # multi-vector ann
@@ -206,15 +220,22 @@ def load_and_transform_dataset(dataset_name: str) -> Tuple:
         raise NotImplementedError("Multi-modal ann datasets are not supported yet.")
     else:
         # dataset_type = ann
-        X_train = numpy.array(D["train"])
-        X_test = numpy.array(D["test"])
+        X_train = np.array(D["train"])
+        X_test = np.array(D["test"])
         print(f"Got a train set of size ({X_train.shape[0]} * {dimension})")
         print(f"Got {len(X_test)} queries")
         train, test = dataset_transform(D)
         return dataset_type, distance, (train, test)
 
-def build_index(algo: BaseANN, X_train: numpy.ndarray, X_train_label=None, label_names=None, label_types=None) -> Tuple:
-    """Builds the ANN index for a given ANN algorithm on the training data.
+def build_index(
+        algo: BaseANN,
+        X_train : np.ndarray,
+        X_train_label : np.ndarray | None = None,
+        label_names : List[str] | None = None,
+        label_types : List[str] | None = None
+        ) -> Tuple:
+    """
+    Builds the ANN index for a given ANN algorithm on the training data.
 
     Args:
         algo (Any): The algorithm instance.
@@ -238,8 +259,15 @@ def build_index(algo: BaseANN, X_train: numpy.ndarray, X_train_label=None, label
     return build_time, index_size
 
 
-def run(definition: Definition, dataset_name: str, count: int, run_count: int, batch: bool) -> None:
-    """Run the algorithm benchmarking.
+def run(
+        definition: Definition,
+        dataset_name: str,
+        count: int,
+        run_count: int,
+        batch: bool
+        ) -> None:
+    """
+    Run the algorithm benchmarking.
 
     Args:
         definition (Definition): The algorithm definition.
@@ -251,16 +279,11 @@ def run(definition: Definition, dataset_name: str, count: int, run_count: int, b
     algo = instantiate_algorithm(definition)
     assert not definition.query_argument_groups or hasattr(
         algo, "set_query_arguments"
-    ), f"""\
-error: query argument groups have been specified for {definition.module}.{definition.constructor}({definition.arguments}), but the \
-algorithm instantiated from it does not implement the set_query_arguments \
-function"""
+    ), f"""error: query argument groups have been specified for \
+        {definition.module}.{definition.constructor}({definition.arguments}), \
+            but the algorithm instantiated from it does not implement \
+                the set_query_arguments function"""
 
-    # is_filter_dataset = "filter" in dataset_name
-    # if is_filter_dataset:
-    #     X_train, X_train_label, X_test, X_test_label, distance, label_names, label_types, filter_expr_func = load_and_transform_filter_dataset(dataset_name)
-    # else:
-    #     X_train, X_test, distance = load_and_transform_dataset(dataset_name)
     dataset_type, distance, data = load_and_transform_dataset(dataset_name)
     if dataset_type == "filter-ann":
         X_train, X_train_label, X_test, X_test_label, label_names, label_types, filter_expr_func = data
@@ -272,72 +295,86 @@ function"""
         # dataset_type == "ann"
         X_train, X_test = data
 
-    try:
-        if hasattr(algo, "supports_prepared_queries"):
-            algo.supports_prepared_queries()
+    if hasattr(algo, "supports_prepared_queries"):
+        algo.supports_prepared_queries()
 
-        if dataset_type == "filter-ann":
-            build_time, index_size = build_index(algo, X_train, X_train_label, label_names, label_types)
+    if dataset_type == "filter-ann":
+        build_time, index_size = build_index(algo, X_train, X_train_label, label_names, label_types)
+    elif dataset_type == "mv-ann":
+        raise NotImplementedError("Multi-vector ann datasets are not supported yet.")
+    elif dataset_type == "mm-ann":
+        raise NotImplementedError("Multi-modal ann datasets are not supported yet.")
+    else:
+        # dataset_type == "ann"
+        build_time, index_size = build_index(algo, X_train)
+
+    query_argument_groups = definition.query_argument_groups or [[]]  # Ensure at least one iteration
+
+    for pos, query_arguments in enumerate(query_argument_groups, 1):
+        print(f"Running query argument group {pos} of {len(query_argument_groups)}...")
+        if query_arguments:
+            algo.set_query_arguments(*query_arguments)
+
+        if dataset_type == "ann":
+            descriptor, results = run_individual_query(algo, X_train, X_test, distance, count, run_count, batch)
+        elif dataset_type == "filter-ann":
+            descriptor, results = run_individual_query(algo, X_train, X_test, distance, count, run_count, batch, X_test_label, filter_expr_func)
         elif dataset_type == "mv-ann":
             raise NotImplementedError("Multi-vector ann datasets are not supported yet.")
         elif dataset_type == "mm-ann":
             raise NotImplementedError("Multi-modal ann datasets are not supported yet.")
         else:
-            # dataset_type == "ann"
-            build_time, index_size = build_index(algo, X_train)
-
-        query_argument_groups = definition.query_argument_groups or [[]]  # Ensure at least one iteration
-
-        for pos, query_arguments in enumerate(query_argument_groups, 1):
-            print(f"Running query argument group {pos} of {len(query_argument_groups)}...")
-            if query_arguments:
-                algo.set_query_arguments(*query_arguments)
-
-            if dataset_type == "ann":
-                descriptor, results = run_individual_query(algo, X_train, X_test, distance, count, run_count, batch)
-            elif dataset_type == "filter-ann":
-                descriptor, results = run_individual_query(algo, X_train, X_test, distance, count, run_count, batch, X_test_label, filter_expr_func)
-            elif dataset_type == "mv-ann":
-                raise NotImplementedError("Multi-vector ann datasets are not supported yet.")
-            elif dataset_type == "mm-ann":
-                raise NotImplementedError("Multi-modal ann datasets are not supported yet.")
-            else:
-                descriptor, results = run_individual_query(algo, X_train, X_test, distance, count, run_count, batch)
-
-            descriptor.update({
-                "build_time": build_time,
-                "index_size": index_size,
-                "algo": definition.algorithm,
-                "dataset": dataset_name
-            })
-
-            store_results(dataset_name, count, definition, query_arguments, descriptor, results, batch)
-    finally:
-        algo.done()
+            descriptor, results = run_individual_query(algo, X_train, X_test, distance, count, run_count, batch)
+        descriptor.update({
+            "build_time": build_time,
+            "index_size": index_size,
+            "algo": definition.algorithm,
+            "dataset": dataset_name
+        })
+        store_results(dataset_name, count, definition, query_arguments, descriptor, results, batch)
+    algo.done()
 
 def run_from_cmdline():
-    """Calls the function `run` using arguments from the command line. See `ArgumentParser` for 
-    arguments, all run it with `--help`.
+    """
+    Calls the function `run` using arguments from the command line.
+    See `ArgumentParser` for arguments, all run it with `--help`.
     """
     parser = argparse.ArgumentParser(
         """
-
             NOTICE: You probably want to run.py rather than this script.
-
-"""
+        """
     )
-    parser.add_argument("--dataset", choices=DATASETS.keys(), help="Dataset to benchmark on.", required=True)
-    parser.add_argument("--algorithm", help="Name of algorithm for saving the results.", required=True)
     parser.add_argument(
-        "--module", help='Python module containing algorithm. E.g. "ann_benchmarks.algorithms.annoy"', required=True
+        "--dataset",
+        choices=DATASETS.keys(),
+        help="Dataset to benchmark on.",
+        required=True
     )
-    parser.add_argument("--constructor", help='Constructer to load from modulel. E.g. "Annoy"', required=True)
     parser.add_argument(
-        "--count", help="K: Number of nearest neighbours for the algorithm to return.", required=True, type=int
+        "--algorithm",
+        help="Name of algorithm for saving the results.",
+        required=True
+    )
+    parser.add_argument(
+        "--module",
+        help='Python module containing algorithm. E.g. "ann_benchmarks.algorithms.annoy"',
+        required=True
+    )
+    parser.add_argument(
+        "--constructor",
+        help='Constructor to load from module. E.g. "Annoy"',
+        required=True
+    )
+    parser.add_argument(
+        "-k",
+        "--count",
+        help="K: Number of nearest neighbours for the algorithm to return.",
+        required=True,
+        type=int
     )
     parser.add_argument(
         "--runs",
-        help="Number of times to run the algorihm. Will use the fastest run-time over the bunch.",
+        help="Number of times to run the algorithm. Will use the fastest run-time over the bunch.",
         required=True,
         type=int,
     )
@@ -346,8 +383,16 @@ def run_from_cmdline():
         help='If flag included, algorithms will be run in batch mode, rather than "individual query" mode.',
         action="store_true",
     )
-    parser.add_argument("build", help='JSON of arguments to pass to the constructor. E.g. ["angular", 100]')
-    parser.add_argument("queries", help="JSON of arguments to pass to the queries. E.g. [100]", nargs="*", default=[])
+    parser.add_argument(
+        "build",
+        help='JSON of arguments to pass to the constructor. E.g. ["angular", 100]'
+    )
+    parser.add_argument(
+        "queries",
+        help="JSON of arguments to pass to the queries. E.g. [100]",
+        nargs="*",
+        default=[]
+    )
     args = parser.parse_args()
 
     algo_args = json.loads(args.build)
@@ -376,7 +421,9 @@ def run_docker(
     cpu_limit: str,
     mem_limit: Optional[int] = None
 ) -> None:
-    """Runs `run_from_cmdline` within a Docker container with specified parameters and logs the output.
+    """
+    Runs `run_from_cmdline` within a Docker container with specified parameters
+    and logs the output.
 
     See `run_from_cmdline` for details on the args.
     """
@@ -420,7 +467,12 @@ def run_docker(
     logger = logging.getLogger(f"annb.{container.short_id}")
 
     logger.info(
-        "Created container %s: CPU limit %s, mem limit %s, timeout %d, command %s".format(container.short_id, cpu_limit, mem_limit, timeout, cmd)
+        "Created container %s: CPU limit %s, mem limit %s, timeout %s, command %s",
+        container.short_id,
+        cpu_limit,
+        mem_limit,
+        timeout,
+        cmd,
     )
 
     def stream_logs():
@@ -446,7 +498,9 @@ def _handle_container_return_value(
     container: docker.models.containers.Container,
     logger: logging.Logger
 ) -> None:
-    """Handles the return value of a Docker container and outputs error and stdout messages (with colour).
+    """
+    Handles the return value of a Docker container and 
+    outputs error and stdout messages (with color).
 
     Args:
         return_value (Union[Dict[str, Union[int, str]], int]): The return value of the container.
@@ -457,7 +511,8 @@ def _handle_container_return_value(
     base_msg = f"Child process for container {container.short_id} "
     msg = base_msg + "returned exit code {}"
 
-    if isinstance(return_value, dict):  # The return value from container.wait changes from int to dict in docker 3.0.0
+    if isinstance(return_value, dict):
+        # The return value from container.wait changes from int to dict in docker 3.0.0
         error_msg = return_value.get("Error", "")
         exit_code = return_value["StatusCode"]
         msg = msg.format(f"{exit_code} with message {error_msg}")

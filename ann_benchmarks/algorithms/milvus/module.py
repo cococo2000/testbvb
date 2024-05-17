@@ -168,8 +168,7 @@ class Milvus(BaseANN):
                     )
             self.collection.insert(entities)
         self.collection.flush()
-        print(f"[Milvus] {self.collection.num_entities} data has been \
-              inserted into collection {self.collection_name}!!!")
+        print(f"[Milvus] {self.collection.num_entities} data has been inserted into collection {self.collection_name}!!!")
 
     def get_index_param(self) -> dict:
         """
@@ -198,8 +197,7 @@ class Milvus(BaseANN):
             collection_name = self.collection_name,
             index_name = "vector_index"
         )
-        print(f"[Milvus] Create index {index.to_dict()} {index_progress} \
-              for collection {self.collection_name} successfully!!!")
+        print(f"[Milvus] Create index {index.to_dict()} {index_progress} for collection {self.collection_name} successfully!!!")
 
     def load_collection(self) -> None:
         """
@@ -342,8 +340,7 @@ class MilvusIVFFLAT(Milvus):
             "metric_type": self._metric_type,
             "params": {"nprobe": nprobe}
         }
-        self.name = f"MilvusIVFFLAT metric:{self._metric}, \
-            index_nlist:{self._index_nlist}, search_nprobe:{nprobe}"
+        self.name = f"MilvusIVFFLAT metric:{self._metric}, index_nlist:{self._index_nlist}, search_nprobe:{nprobe}"
 
 
 class MilvusIVFSQ8(Milvus):
@@ -380,8 +377,7 @@ class MilvusIVFSQ8(Milvus):
             "metric_type": self._metric_type,
             "params": {"nprobe": nprobe}
         }
-        self.name = f"MilvusIVFSQ8 metric:{self._metric}, \
-            index_nlist:{self._index_nlist}, search_nprobe:{nprobe}"
+        self.name = f"MilvusIVFSQ8 metric:{self._metric}, index_nlist:{self._index_nlist}, search_nprobe:{nprobe}"
 
 
 class MilvusIVFPQ(Milvus):
@@ -463,8 +459,7 @@ class MilvusHNSW(Milvus):
             "metric_type": self._metric_type,
             "params": {"ef": ef}
         }
-        self.name = f"MilvusHNSW metric:{self._metric}, \
-            index_M:{self._index_m}, index_ef:{self._index_ef}, search_ef={ef}"
+        self.name = f"MilvusHNSW metric:{self._metric}, index_M:{self._index_m}, index_ef:{self._index_ef}, search_ef={ef}"
 
 
 class MilvusSCANN(Milvus):
@@ -501,5 +496,4 @@ class MilvusSCANN(Milvus):
             "metric_type": self._metric_type,
             "params": {"nprobe": nprobe}
         }
-        self.name = f"MilvusSCANN metric:{self._metric}, \
-            index_nlist:{self._index_nlist}, search_nprobe:{nprobe}"
+        self.name = f"MilvusSCANN metric:{self._metric}, index_nlist:{self._index_nlist}, search_nprobe:{nprobe}"

@@ -1,6 +1,5 @@
 import argparse
 from dataclasses import replace
-import h5py
 import logging
 import logging.config
 import multiprocessing.pool

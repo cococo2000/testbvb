@@ -27,7 +27,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        dataset: [random-xs-20-angular]
+        dataset: [random-xs-20-euclidean]
         library:
           - annoy
           - bruteforce
