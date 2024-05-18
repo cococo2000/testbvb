@@ -1,6 +1,5 @@
 import argparse
 from dataclasses import replace
-import h5py
 import logging
 import logging.config
 import multiprocessing.pool
@@ -77,6 +76,12 @@ def run_worker(cpu: int, args: argparse.Namespace, queue: multiprocessing.Queue)
 
 
 def parse_arguments() -> argparse.Namespace:
+    """
+    Parses the command line arguments and returns the parsed arguments.
+
+    Returns:
+        argparse.Namespace: The parsed arguments.
+    """
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
         "--dataset",
@@ -86,44 +91,80 @@ def parse_arguments() -> argparse.Namespace:
         choices=DATASETS.keys(),
     )
     parser.add_argument(
-        "-k", "--count", default=10, type=positive_int, help="the number of near neighbours to search for"
+        "-k",
+        "--count",
+        default=10,
+        type=positive_int,
+        help="the number of near neighbours to search for"
     )
     parser.add_argument(
-        "--definitions", metavar="FOLDER", help="base directory of algorithms. Algorithm definitions expected at 'FOLDER/*/config.yml'", default="ann_benchmarks/algorithms"
+        "--definitions",
+        metavar="FOLDER",
+        help="base directory of algorithms. Algorithm definitions expected at 'FOLDER/*/config.yml'",
+        default="ann_benchmarks/algorithms"
     )
-    parser.add_argument("--algorithm", metavar="NAME", help="run only the named algorithm", default=None)
     parser.add_argument(
-        "--docker-tag", metavar="NAME", help="run only algorithms in a particular docker image", default=None
+        "--algorithm",
+        metavar="NAME",
+        help="run only the named algorithm",
+        default=None
     )
     parser.add_argument(
-        "--list-algorithms", help="print the names of all known algorithms and exit", action="store_true"
+        "--docker-tag",
+        metavar="NAME",
+        help="run only algorithms in a particular docker image",
+        default=None
     )
-    parser.add_argument("--force", help="re-run algorithms even if their results already exist", action="store_true")
+    parser.add_argument(
+        "--list-algorithms",
+        help="print the names of all known algorithms and exit",
+        action="store_true"
+    )
+    parser.add_argument(
+        "--force",
+        help="re-run algorithms even if their results already exist",
+        action="store_true"
+    )
     parser.add_argument(
         "--runs",
         metavar="COUNT",
         type=positive_int,
-        help="run each algorithm instance %(metavar)s times and use only" " the best result",
+        help="run each algorithm instance %(metavar)s times and use only the best result",
         default=5,
     )
     parser.add_argument(
         "--timeout",
         type=int,
-        help="Timeout (in seconds) for each individual algorithm run, or -1" "if no timeout should be set",
+        help="Timeout (in seconds) for each individual algorithm run, or -1 if no timeout should be set",
         default=2 * 3600,
     )
     parser.add_argument(
         "--local",
         action="store_true",
-        help="If set, then will run everything locally (inside the same " "process) rather than using Docker",
+        help="If set, then will run everything locally (inside the same process) rather than using Docker",
     )
-    parser.add_argument("--batch", action="store_true", help="If set, algorithms get all queries at once")
     parser.add_argument(
-        "--max-n-algorithms", type=int, help="Max number of algorithms to run (just used for testing)", default=-1
+        "--batch",
+        action="store_true",
+        help="If set, algorithms get all queries at once"
     )
-    parser.add_argument("--run-disabled", help="run algorithms that are disabled in algos.yml", action="store_true")
-    parser.add_argument("--parallelism", type=positive_int, help="Number of Docker containers in parallel", default=1)
-
+    parser.add_argument(
+        "--max-n-algorithms",
+        type=int,
+        help="Max number of algorithms to run (just used for testing)",
+        default=-1
+    )
+    parser.add_argument(
+        "--run-disabled",
+        help="run algorithms that are disabled in algos.yml",
+        action="store_true"
+    )
+    parser.add_argument(
+        "--parallelism",
+        type=positive_int,
+        help="Number of Docker containers in parallel",
+        default=1
+    )
     args = parser.parse_args()
     if args.timeout == -1:
         args.timeout = None

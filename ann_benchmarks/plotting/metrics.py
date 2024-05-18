@@ -87,14 +87,21 @@ def percentile_999(times):
     return np.percentile(times, 99.9) * 1000.0
 
 
+def insert_time(queries, attrs):
+    return attrs["insert_time"]
+
+def data_size(queries, attrs):
+    return attrs["data_size"]
+
+def index_time(queries, attrs):
+    return attrs["index_time"]
+
 def index_size(queries, attrs):
     # TODO(erikbern): should replace this with peak memory usage or something
     return attrs.get("index_size", 0)
 
-
 def build_time(queries, attrs):
     return attrs["build_time"]
-
 
 def candidates(queries, attrs):
     return attrs["candidates"]
@@ -174,6 +181,27 @@ all_metrics = {
         ),  # noqa
         "worst": float("inf"),
     },
+    "insert_time": {
+        "description": "Insert time (s)",
+        "function": lambda true_distances, run_distances, metrics, times, run_attrs: insert_time(
+            true_distances, run_attrs
+        ),  # noqa
+        "worst": float("inf"),
+    },
+    "data_size": {
+        "description": "Data size (kB)",
+        "function": lambda true_distances, run_distances, metrics, times, run_attrs: data_size(
+            true_distances, run_attrs
+        ),  # noqa
+        "worst": float("inf"),
+    },
+    "index_time": {
+        "description": "Index time (s)",
+        "function": lambda true_distances, run_distances, metrics, times, run_attrs: index_time(
+            true_distances, run_attrs
+        ),  # noqa
+        "worst": float("inf"),
+    },
     "build": {
         "description": "Build time (s)",
         "function": lambda true_distances, run_distances, metrics, times, run_attrs: build_time(
@@ -188,7 +216,7 @@ all_metrics = {
         ),  # noqa
         "worst": float("inf"),
     },
-    "indexsize": {
+    "index_size": {
         "description": "Index size (kB)",
         "function": lambda true_distances, run_distances, metrics, times, run_attrs: index_size(
             true_distances, run_attrs

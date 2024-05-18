@@ -9,7 +9,7 @@ float:
       run_groups:
         FLAT:
           args:
-            placeholder: [0]
+            []
     - base_args: ["@metric", "@dimension"]
       constructor: MilvusIVFFLAT
       disabled: false

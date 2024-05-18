@@ -94,21 +94,50 @@ def create_plot(all_data, raw, x_scale, y_scale, xn, yn, fn_out, linestyles, bat
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset", metavar="DATASET", default="glove-100-angular")
-    parser.add_argument("--count", default=10)
     parser.add_argument(
-        "--definitions", metavar="FILE", help="load algorithm definitions from FILE", default="algos.yaml"
-    )
-    parser.add_argument("--limit", default=-1)
-    parser.add_argument("-o", "--output")
-    parser.add_argument(
-        "-x", "--x-axis", help="Which metric to use on the X-axis", choices=metrics.keys(), default="k-nn"
+        "--dataset",
+        metavar="DATASET",
+        default="glove-100-angular"
     )
     parser.add_argument(
-        "-y", "--y-axis", help="Which metric to use on the Y-axis", choices=metrics.keys(), default="qps"
+        "-k",
+        "--count",
+        default=10
     )
     parser.add_argument(
-        "-X", "--x-scale", help="Scale to use when drawing the X-axis. Typically linear, logit or a2", default="linear"
+        "--definitions",
+        metavar="FILE",
+        help="load algorithm definitions from FILE",
+        default="algos.yaml"
+    )
+    parser.add_argument(
+        "--limit",
+        default=-1
+    )
+    parser.add_argument(
+        "-o",
+        "--output",
+        help="output file",
+    )
+    parser.add_argument(
+        "-x",
+        "--x-axis",
+        help="Which metric to use on the X-axis",
+        choices=metrics.keys(),
+        default="k-nn"
+    )
+    parser.add_argument(
+        "-y",
+        "--y-axis",
+        help="Which metric to use on the Y-axis",
+        choices=metrics.keys(),
+        default="qps"
+    )
+    parser.add_argument(
+        "-X",
+        "--x-scale",
+        help="Scale to use when drawing the X-axis. Typically linear, logit or a2",
+        default="linear"
     )
     parser.add_argument(
         "-Y",
@@ -118,10 +147,19 @@ if __name__ == "__main__":
         default="linear",
     )
     parser.add_argument(
-        "--raw", help="Show raw results (not just Pareto frontier) in faded colours", action="store_true"
+        "--raw",
+        help="Show raw results (not just Pareto frontier) in faded colors",action="store_true"
     )
-    parser.add_argument("--batch", help="Plot runs in batch mode", action="store_true")
-    parser.add_argument("--recompute", help="Clears the cache and recomputes the metrics", action="store_true")
+    parser.add_argument(
+        "--batch",
+        help="Plot runs in batch mode",
+        action="store_true"
+    )
+    parser.add_argument(
+        "--recompute",
+        help="Clears the cache and recomputes the metrics",
+        action="store_true"
+    )
     args = parser.parse_args()
 
     if not args.output:

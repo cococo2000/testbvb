@@ -1,66 +1,95 @@
+""" Base class/interface for Approximate Nearest Neighbors (ANN) algorithms used in benchmarking. """
 from multiprocessing.pool import ThreadPool
 from typing import Any, Dict, Optional
 import psutil
 
-import numpy
+import numpy as np
 
 class BaseANN(object):
-    """Base class/interface for Approximate Nearest Neighbors (ANN) algorithms used in benchmarking."""
+    """
+    Base class/interface for Approximate Nearest Neighbors (ANN) algorithms used in benchmarking.
+    """
 
     def done(self) -> None:
         """Clean up BaseANN once it is finished being used."""
-        pass
 
     def get_memory_usage(self) -> Optional[float]:
-        """Returns the current memory usage of this ANN algorithm instance in kilobytes.
+        """
+        Returns the current memory usage of this ANN algorithm instance in kilobytes.
 
         Returns:
             float: The current memory usage in kilobytes (for backwards compatibility), or None if
                 this information is not available.
         """
-
         return psutil.Process().memory_info().rss / 1024
 
-    def fit(self, X: numpy.array) -> None:
-        """Fits the ANN algorithm to the provided data. 
-
-        Note: This is a placeholder method to be implemented by subclasses.
-
-        Args:
-            X (numpy.array): The data to fit the algorithm to.
+    def load_data(
+            self,
+            embeddings: np.array,
+            labels: np.ndarray | None = None,
+            label_names: list[str] | None = None,
+            label_types: list[str] | None = None,
+            ) -> None:
         """
-        pass
-
-    def query(self, q: numpy.array, n: int) -> numpy.array:
-        """Performs a query on the algorithm to find the nearest neighbors. 
-
-        Note: This is a placeholder method to be implemented by subclasses.
+        Fit the ANN algorithm to the provided data
 
         Args:
-            q (numpy.array): The vector to find the nearest neighbors of.
-            n (int): The number of nearest neighbors to return.
+            embeddings (np.array): embeddings
+            labels (np.array): labels
+            label_names (list[str]): label names
+            label_types (list[str]): label types
+        """
 
+    def create_index(self) -> None:
+        """
+        Create index for the ANN algorithm
+        """
+
+    def query(
+            self,
+            v : np.ndarray,
+            n : int,
+            expr : str | None = None
+            ) -> list[int]:
+        """
+        Performs a query on the algorithm to find the nearest neighbors
+
+        Args:
+            v (np.array): The vector to find the nearest neighbors of.
+            n (int): The number of nearest neighbors to return.
+            expr (str): The search expression
+        
         Returns:
-            numpy.array: An array of indices representing the nearest neighbors.
+            list[int]: An array of indices representing the nearest neighbors.
         """
         return []  # array of candidate indices
 
-    def batch_query(self, X: numpy.array, n: int) -> None:
-        """Performs multiple queries at once and lets the algorithm figure out how to handle it.
+    def batch_query(
+            self,
+            X: np.ndarray,
+            n: int,
+            exprs: list[str] | None = None
+            ) -> None:
+        """
+        Performs multiple queries at once and lets the algorithm figure out how to handle it.
 
         The default implementation uses a ThreadPool to parallelize query processing.
 
         Args:
-            X (numpy.array): An array of vectors to find the nearest neighbors of.
+            X (np.array): An array of vectors to find the nearest neighbors of.
             n (int): The number of nearest neighbors to return for each query.
         Returns: 
             None: self.get_batch_results() is responsible for retrieving batch result
         """
         pool = ThreadPool()
-        self.res = pool.map(lambda q: self.query(q, n), X)
+        if exprs is None:
+            self.res = pool.map(lambda q: self.query(q, n), X)
+        else:
+            self.res = pool.starmap(lambda q, e: self.query(q, n, e), zip(X, exprs))
 
-    def get_batch_results(self) -> numpy.array:
-        """Retrieves the results of a batch query (from .batch_query()).
+    def get_batch_results(self) -> np.array:
+        """
+        Retrieves the results of a batch query (from .batch_query()).
 
         Returns:
             numpy.array: An array of nearest neighbor results for each query in the batch.
@@ -68,7 +97,8 @@ class BaseANN(object):
         return self.res
 
     def get_additional(self) -> Dict[str, Any]:
-        """Returns additional attributes to be stored with the result.
+        """
+        Returns additional attributes to be stored with the result.
 
         Returns:
             dict: A dictionary of additional attributes.

@@ -9,7 +9,7 @@ float:
       run_groups:
         GPU_BF:
           args:
-            placeholder: [0]
+            []
     - base_args: ["@metric", "@dimension"]
       constructor: MilvusGPU_IVFFLAT
       disabled: false
