@@ -99,6 +99,7 @@ class Milvus(BaseANN):
         if num_labels > 0:
             label_type_to_dtype = {
                 "BOOL": DataType.BOOL,
+                "INT": DataType.INT32,
                 "INT8": DataType.INT8,
                 "INT16": DataType.INT16,
                 "INT32": DataType.INT32,
