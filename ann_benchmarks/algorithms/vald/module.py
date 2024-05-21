@@ -9,7 +9,7 @@ from vald.v1.agent.core import agent_pb2_grpc
 from vald.v1.payload import payload_pb2
 from vald.v1.vald import insert_pb2_grpc, search_pb2_grpc
 
-from ..base.module import BaseANN
+from ann_benchmarks.algorithms.base.module import BaseANN
 
 default_server_config = {
     "version": "v0.0.0",

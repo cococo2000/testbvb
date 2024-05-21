@@ -1,6 +1,6 @@
 import numpy as np
 
-from ..base.module import BaseANN
+from ann_benchmarks.algorithms.base.module import BaseANN
 
 
 class DummyAlgoMt(BaseANN):

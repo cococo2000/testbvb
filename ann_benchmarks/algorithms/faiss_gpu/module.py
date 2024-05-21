@@ -5,7 +5,7 @@ sys.path.append("faiss")  # noqa
 import faiss
 import numpy
 
-from ..base.module import BaseANN
+from ann_benchmarks.algorithms.base.module import BaseANN
 
 # Implementation based on
 # https://github.com/facebookresearch/faiss/blob/master/benchs/bench_gpu_sift1m.py  # noqa

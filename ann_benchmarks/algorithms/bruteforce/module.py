@@ -2,7 +2,7 @@ import numpy
 import sklearn.neighbors
 
 from ...distance import compute_distance, metrics as pd
-from ..base.module import BaseANN
+from ann_benchmarks.algorithms.base.module import BaseANN
 
 class BruteForce(BaseANN):
     def __init__(self, metric):

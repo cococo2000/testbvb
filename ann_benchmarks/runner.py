@@ -61,7 +61,7 @@ def run_individual_query(
         n_items_processed = [0]
 
         def single_query(
-                v: np.ndarray,
+                v: np.array,
                 labels: Optional[np.ndarray] = None,
                 ) -> Tuple[float, List[Tuple[int, float]]]:
             """

@@ -17,7 +17,7 @@ from qdrant_client.http.models import (
     HnswConfigDiff,
 )
 
-from ..base.module import BaseANN
+from ann_benchmarks.algorithms.base.module import BaseANN
 
 TIMEOUT = 30
 BATCH_SIZE = 128

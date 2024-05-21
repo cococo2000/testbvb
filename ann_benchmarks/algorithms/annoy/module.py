@@ -1,6 +1,6 @@
 import annoy
 
-from ..base.module import BaseANN
+from ann_benchmarks.algorithms.base.module import BaseANN
 
 class Annoy(BaseANN):
     def __init__(self, metric, n_trees):

@@ -11,8 +11,7 @@ import plot
 from ann_benchmarks import results
 from ann_benchmarks.datasets import get_dataset
 from ann_benchmarks.plotting.metrics import all_metrics as metrics
-from ann_benchmarks.plotting.plot_variants import \
-    all_plot_variants as plot_variants
+from ann_benchmarks.plotting.plot_variants import all_plot_variants as plot_variants
 from ann_benchmarks.plotting.utils import (compute_all_metrics,
                                            create_linestyles, create_pointset,
                                            get_plot_label)
@@ -208,13 +207,13 @@ def load_all_results():
             sdn = get_run_desc(properties)
             if sdn != old_sdn:
                 dataset, _ = get_dataset(properties["dataset"])
-                cached_true_dist = list(dataset["distances"])
+                cached_true_neighbors = list(dataset["neighbors"])
                 old_sdn = sdn
             algo_ds = get_dataset_label(sdn)
             desc_suffix = "-batch" if mode == "batch" else ""
             algo = properties["algo"] + desc_suffix
             sdn += desc_suffix
-            ms = compute_all_metrics(cached_true_dist, f, properties, args.recompute)
+            ms = compute_all_metrics(cached_true_neighbors, f, properties, args.recompute)
             all_runs_by_algorithm[mode].setdefault(algo, {}).setdefault(algo_ds, []).append(ms)
             all_runs_by_dataset[mode].setdefault(sdn, {}).setdefault(algo, []).append(ms)
 

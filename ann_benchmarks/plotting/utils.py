@@ -38,25 +38,21 @@ def create_pointset(data, xn, yn):
     return xs, ys, ls, axs, ays, als
 
 
-def compute_metrics(true_nn_distances, res, metric_1, metric_2, recompute=False):
+def compute_metrics(true_nn_neighbors, res, metric_1, metric_2, recompute=False):
     all_results = {}
     for i, (properties, run) in enumerate(res):
         algo = properties["algo"]
         algo_name = properties["name"]
-        # cache distances to avoid access to hdf5 file
-        run_distances = np.array(run["distances"])
+        # cache neighbors to avoid access to hdf5 file
+        run_neighbors = np.array(run["neighbors"])
         # cache times to avoid access to hdf5 file
         times = np.array(run["times"])
         if recompute and "metrics" in run:
             del run["metrics"]
         metrics_cache = get_or_create_metrics(run)
 
-        metric_1_value = metrics[metric_1]["function"](
-            true_nn_distances, run_distances, metrics_cache, times, properties
-        )
-        metric_2_value = metrics[metric_2]["function"](
-            true_nn_distances, run_distances, metrics_cache, times, properties
-        )
+        metric_1_value = metrics[metric_1]["function"](true_nn_neighbors, run_neighbors, metrics_cache, times, properties)
+        metric_2_value = metrics[metric_2]["function"](true_nn_neighbors, run_neighbors, metrics_cache, times, properties)
 
         print("%3d: %80s %12.3f %12.3f" % (i, algo_name, metric_1_value, metric_2_value))
 
@@ -65,14 +61,14 @@ def compute_metrics(true_nn_distances, res, metric_1, metric_2, recompute=False)
     return all_results
 
 
-def compute_all_metrics(true_nn_distances, run, properties, recompute=False):
+def compute_all_metrics(true_nn_neighbors, run, properties, recompute=False):
     algo = properties["algo"]
     algo_name = properties["name"]
     print("--")
     print(algo_name)
     results = {}
-    # cache distances to avoid access to hdf5 file
-    run_distances = np.array(run["distances"])
+    # cache neighbors to avoid access to hdf5 file
+    run_neighbors = np.array(run["neighbors"])
     # cache times to avoid access to hdf5 file
     times = np.array(run["times"])
     if recompute and "metrics" in run:
@@ -80,7 +76,7 @@ def compute_all_metrics(true_nn_distances, run, properties, recompute=False):
     metrics_cache = get_or_create_metrics(run)
 
     for name, metric in metrics.items():
-        v = metric["function"](true_nn_distances, run_distances, metrics_cache, times, properties)
+        v = metric["function"](true_nn_neighbors, run_neighbors, metrics_cache, times, properties)
         results[name] = v
         if v:
             print("%s: %g" % (name, v))
@@ -88,15 +84,12 @@ def compute_all_metrics(true_nn_distances, run, properties, recompute=False):
 
 
 def compute_metrics_all_runs(dataset, res, recompute=False):
-    true_nn_distances = list(dataset["distances"])
+    true_nn_neighbors = list(dataset["neighbors"])
     for i, (properties, run) in enumerate(res):
         algo = properties["algo"]
         algo_name = properties["name"]
-        # cache distances to avoid access to hdf5 file
-        # print('Load distances and times')
-        run_distances = np.array(run["distances"])
+        run_neighbors = np.array(run["neighbors"])
         times = np.array(run["times"])
-        # print('... done')
         if recompute and "metrics" in run:
             print("Recomputing metrics, clearing cache")
             del run["metrics"]
@@ -106,7 +99,7 @@ def compute_metrics_all_runs(dataset, res, recompute=False):
 
         run_result = {"algorithm": algo, "parameters": algo_name, "count": properties["count"]}
         for name, metric in metrics.items():
-            v = metric["function"](true_nn_distances, run_distances, metrics_cache, times, properties)
+            v = metric["function"](true_nn_neighbors, run_neighbors, metrics_cache, times, properties)
             run_result[name] = v
         yield run_result
 

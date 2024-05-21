@@ -26,9 +26,6 @@ class FaissHNSW(Faiss):
         faiss.cvar.hnsw_stats.reset()
         self.index.hnsw.efSearch = ef
 
-    def get_additional(self):
-        return {"dist_comps": faiss.cvar.hnsw_stats.ndis}
-
     def __str__(self):
         return "faiss (%s, ef: %d)" % (self.method_param, self.index.hnsw.efSearch)
 

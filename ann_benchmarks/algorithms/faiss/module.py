@@ -5,7 +5,7 @@ import faiss
 import numpy
 import sklearn.preprocessing
 
-from ..base.module import BaseANN
+from ann_benchmarks.algorithms.base.module import BaseANN
 
 
 class Faiss(BaseANN):
@@ -71,9 +71,6 @@ class FaissIVF(Faiss):
         self._n_probe = n_probe
         self.index.nprobe = self._n_probe
 
-    def get_additional(self):
-        return {"dist_comps": faiss.cvar.indexIVF_stats.ndis + faiss.cvar.indexIVF_stats.nq * self._n_list}  # noqa
-
     def __str__(self):
         return "FaissIVF(n_list=%d, n_probe=%d)" % (self._n_list, self._n_probe)
 
@@ -109,9 +106,6 @@ class FaissIVFPQfs(Faiss):
             self.index = self.base_index
         else:
             self.index = self.refine_index
-
-    def get_additional(self):
-        return {"dist_comps": faiss.cvar.indexIVF_stats.ndis + faiss.cvar.indexIVF_stats.nq * self._n_list}  # noqa
 
     def __str__(self):
         return "FaissIVFPQfs(n_list=%d, n_probe=%d, k_reorder=%d)" % (self._n_list, self._n_probe, self._k_reorder)
