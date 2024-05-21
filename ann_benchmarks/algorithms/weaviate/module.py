@@ -1,8 +1,8 @@
 """ Weaviate implementation for the ANN-Benchmarks framework. """
 import subprocess
 import uuid
-import numpy as np
 import time
+import numpy as np
 
 import weaviate
 import weaviate.classes as wvc
@@ -10,6 +10,7 @@ from weaviate.classes.config import Property, DataType, Configure, VectorDistanc
 from weaviate.classes.query import Filter
 
 from ann_benchmarks.algorithms.base.module import BaseANN
+from ann_benchmarks.algorithms.weaviate.utils import convert_conditions_to_filters
 
 
 def metric_mapping(_metric: str):
@@ -40,17 +41,16 @@ class Weaviate(BaseANN):
     def __init__(
             self,
             metric : str,
-            max_connections,
-            ef_construction=512
+            index_param: dict,
         ):
         self._metric = metric
         self._metric_type = metric_mapping(metric)
-        self.max_connections = max_connections
-        self.ef_construction = ef_construction
+        self.max_connections = index_param.get("M", None)
+        self.ef_construction = index_param.get("efConstruction", None)
         self.start_weaviate()
         time.sleep(10)
         max_tries = 10
-        for i in range(max_tries):
+        for _ in range(max_tries):
             try:
                 self.client = weaviate.connect_to_local()
                 # self.client = weaviate.
@@ -86,6 +86,30 @@ class Weaviate(BaseANN):
         except subprocess.CalledProcessError as e:
             print(f"[weaviate] docker compose down failed: {e}!!!")
 
+    def create_collection(self, properties) -> None:
+        """
+        Create collection with schema
+        
+        Args:
+            properties (list): list of properties
+        """
+        self.client.collections.create(
+            self.collection_name,
+            properties=properties,
+            vector_index_config=Configure.VectorIndex.hnsw(
+                distance_metric=self._metric_type,
+                ef_construction=self.ef_construction,
+                max_connections=self.max_connections,
+            ),
+            inverted_index_config=Configure.inverted_index(  # Optional
+                bm25_b=0.7,
+                bm25_k1=1.25,
+                index_null_state=True,
+                index_property_length=True,
+                index_timestamps=True
+            ),
+        )
+
     def load_data(
             self,
             embeddings: np.array,
@@ -113,32 +137,17 @@ class Weaviate(BaseANN):
                         data_type=label_type_to_weaviate_type[label_type.upper()]
                     )
                 )
-        self.client.collections.create(
-            self.collection_name,
-            properties=properties,
-            # vector_index_config=Configure.VectorIndex.hnsw(
-            #     distance_metric=self._metric_type,
-            #     ef_construction=self.ef_construction,
-            #     max_connections=self.max_connections,
-            # ),
-            inverted_index_config=Configure.inverted_index(  # Optional
-                bm25_b=0.7,
-                bm25_k1=1.25,
-                index_null_state=True,
-                index_property_length=True,
-                index_timestamps=True
-            ),
-        )
+        self.create_collection(properties)
         self.collection = self.client.collections.get(self.collection_name)
+        print(f"[weaviate] Start loading data with {len(embeddings)} data...")
         batch_size = 1000
+        print(f"[weaviate] load data with batch size: {batch_size}")
         for i in range(0, len(embeddings), batch_size):
             data_objects = []
-            print(f"[weaviate] load data: {i}/{len(embeddings)}")
             for j in range(i, min(i + batch_size, len(embeddings))):
                 properties = {}
                 if num_labels > 0:
                     for k in range(num_labels):
-                        # print(f"[weaviate] labels[j][k]: {labels[j][k]} {type(labels[j][k])}")
                         # TODO: fix if the type of labels is not int/int32
                         properties[label_names[k]] = int(labels[j][k])
                 data_objects.append(
@@ -156,6 +165,9 @@ class Weaviate(BaseANN):
         pass
 
     def set_query_arguments(self, ef):
+        """
+        Set query arguments for weaviate query with hnsw index
+        """
         self.collection.config.update(
             vectorizer_config=Reconfigure.VectorIndex.hnsw(
                 ef=ef
@@ -164,27 +176,16 @@ class Weaviate(BaseANN):
         print(f"[weaviate] set_query_arguments: {ef}")
         print(f"[weaviate] Collection Config: {self.collection.config.get()}")
 
-    def expr2filter(self, expr):
-        if expr is None:
-            return None
-        if expr
-
     def query(self, v, n, expr=None):
-        # print(f"[weaviate] query: {v}")
-        # print(f"[weaviate] query: {n}")
-        # print(f"[weaviate] query: {v.tolist()}")
-        # filters = None
-        filters = eval("""Filter.by_property("text_length").greater_or_equal(3) & Filter.by_property("text_length").less_or_equal(63)""")
+        if expr is not None:
+            filters = eval(convert_conditions_to_filters(expr))
+        else:
+            filters = None
         ret = self.collection.query.near_vector(
             near_vector=v.tolist(),
             limit=n,
             filters=filters,
         )
-        # print(expr)
-        # print(f"[weaviate] query: {ret}")
-
-        # print(f"[weaviate] query: {ret}")
-        # print("[weaviate] query: ", ret.total_count)
         ids = [int(o.uuid) for o in ret.objects]
         return ids
 
