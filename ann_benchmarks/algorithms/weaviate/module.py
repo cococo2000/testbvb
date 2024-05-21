@@ -36,24 +36,20 @@ def metric_mapping(_metric: str):
 
 class Weaviate(BaseANN):
     """
-    Weaviate module for the ANN-Benchmarks framework
+    Weaviate base module
     """
     def __init__(
             self,
-            metric : str,
-            index_param: dict,
+            metric : str
         ):
         self._metric = metric
         self._metric_type = metric_mapping(metric)
-        self.max_connections = index_param.get("M", None)
-        self.ef_construction = index_param.get("efConstruction", None)
         self.start_weaviate()
         time.sleep(10)
         max_tries = 10
         for _ in range(max_tries):
             try:
                 self.client = weaviate.connect_to_local()
-                # self.client = weaviate.
                 break
             except Exception as e:
                 print(f"[weaviate] connection failed: {e}")
@@ -61,7 +57,7 @@ class Weaviate(BaseANN):
         self.collection_name = "test_weaviate"
         self.collection = None
         self.num_labels = 0
-        self.name = f"Weaviate metric={metric}"
+        self.name = f"Weaviate metric:{metric}"
         if self.client.collections.exists(self.collection_name):
             self.client.collections.delete(self.collection_name)
 
@@ -93,22 +89,7 @@ class Weaviate(BaseANN):
         Args:
             properties (list): list of properties
         """
-        self.client.collections.create(
-            self.collection_name,
-            properties=properties,
-            vector_index_config=Configure.VectorIndex.hnsw(
-                distance_metric=self._metric_type,
-                ef_construction=self.ef_construction,
-                max_connections=self.max_connections,
-            ),
-            inverted_index_config=Configure.inverted_index(  # Optional
-                bm25_b=0.7,
-                bm25_k1=1.25,
-                index_null_state=True,
-                index_property_length=True,
-                index_timestamps=True
-            ),
-        )
+        raise NotImplementedError
 
     def load_data(
             self,
@@ -164,18 +145,6 @@ class Weaviate(BaseANN):
         # Weaviate has already created the index before loading the data
         pass
 
-    def set_query_arguments(self, ef):
-        """
-        Set query arguments for weaviate query with hnsw index
-        """
-        self.collection.config.update(
-            vectorizer_config=Reconfigure.VectorIndex.hnsw(
-                ef=ef
-            )
-        )
-        print(f"[weaviate] set_query_arguments: {ef}")
-        print(f"[weaviate] Collection Config: {self.collection.config.get()}")
-
     def query(self, v, n, expr=None):
         if expr is not None:
             filters = eval(convert_conditions_to_filters(expr))
@@ -192,3 +161,72 @@ class Weaviate(BaseANN):
     def done(self):
         self.client.close()
         self.stop_weaviate()
+
+
+class WeaviateFLAT(Weaviate):
+    """
+    Weaviate with FLAT index
+    """
+    def __init__(
+            self,
+            metric : str,
+        ):
+        super().__init__(metric)
+        self.name = f"WeaviateFLAT metric:{metric}"
+
+    def create_collection(self, properties) -> None:
+        self.client.collections.create(
+            name=self.collection_name,
+            properties=properties,
+            vector_index_config=Configure.VectorIndex.flat(
+                distance_metric=self._metric_type,
+                quantizer=Configure.VectorIndex.Quantizer.bq()
+            ),
+            inverted_index_config=Configure.inverted_index()
+        )
+
+
+class WeaviateHNSW(Weaviate):
+    """
+    Weaviate with HNSW index
+    """
+    def __init__(
+            self,
+            metric : str,
+            index_param: dict,
+        ):
+        super().__init__(metric)
+        self.max_connections = index_param.get("M", None)
+        self.ef_construction = index_param.get("efConstruction", None)
+
+    def create_collection(self, properties) -> None:
+        """
+        Create collection with schema
+        
+        Args:
+            properties (list): list of properties
+        """
+        self.client.collections.create(
+            name=self.collection_name,
+            properties=properties,
+            vector_index_config=Configure.VectorIndex.hnsw(
+                distance_metric=self._metric_type,
+                ef_construction=self.ef_construction,
+                max_connections=self.max_connections,
+                quantizer=Configure.VectorIndex.Quantizer.pq()
+            ),
+            inverted_index_config=Configure.inverted_index()
+        )
+
+    def set_query_arguments(self, ef):
+        """
+        Set query arguments for weaviate query with hnsw index
+        """
+        self.collection.config.update(  
+            vectorizer_config=Reconfigure.VectorIndex.hnsw(
+                ef=ef
+            )
+        )
+        self.name = f"WeaviateHNSW metric:{self._metric} max_connections:{self.max_connections} ef_construction:{self.ef_construction} ef:{ef}"
+        print(f"[weaviate] set_query_arguments: {ef}")
+        print(f"[weaviate] Collection Config: {self.collection.config.get()}")
