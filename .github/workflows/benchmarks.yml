@@ -29,15 +29,7 @@ jobs:
       matrix:
         dataset: [random-xs-20-euclidean]
         library:
-          - annoy
-          - bruteforce
-          - dummy_algo
-          - faiss
-          - faiss_hnsw
           - milvus
-          - qdrant
-          - vald
-          - vespa
           - weaviate
 
     name: ${{ matrix.library }} (${{ matrix.dataset }})

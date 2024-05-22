@@ -70,9 +70,8 @@ def get_dataset(dataset_name: str) -> Tuple[h5py.File, int]:
             dimension = len(hdf5_file["train"][0])
         except KeyError:
             dimension = len(hdf5_file["train_vec"][0])
-        except:
-            raise ValueError("Could not determine dimension of dataset")
-    # dimension = int(hdf5_file.attrs["dimension"]) if "dimension" in hdf5_file.attrs else len(hdf5_file["train"][0])
+        except Exception as exc:
+            raise ValueError("Could not determine dimension of dataset") from exc
     return hdf5_file, dimension
 
 
