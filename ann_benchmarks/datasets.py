@@ -560,14 +560,19 @@ def dbpedia_entities_openai_1M(out_fn, n = None):
 
     write_output(X_train, X_test, out_fn, "angular")
 
+def app_reviews(out_fn: str) -> None:
+    pass
+
+def cc_news(out_fn: str) -> None:
+    pass
+
+def ag_news(out_fn: str) -> None:
+    pass
+
 def gpt4vision(out_fn: str) -> None:
     pass
 
-def app_reviews(out_fn: str) -> None:
-    pass
-def cc_news(out_fn: str) -> None:
-    pass
-def ag_news(out_fn: str) -> None:
+def librispeech_asr(out_fn: str) -> None:
     pass
 
 DATASETS: Dict[str, Callable[[str], None]] = {
@@ -597,10 +602,11 @@ DATASETS: Dict[str, Callable[[str], None]] = {
     "movielens1m-jaccard": movielens1m,
     "movielens10m-jaccard": movielens10m,
     "movielens20m-jaccard": movielens20m,
-    "gpt4vision-euclidean": gpt4vision,
     "app_reviews-eudlidean-filter": app_reviews,
     "cc_news-eudlidean-filter": cc_news,
     "ag_news-eudlidean-filter": ag_news,
+    "gpt4vision-euclidean-mm": gpt4vision,
+    "librispeech_asr-euclidean-mm": librispeech_asr,
 }
 
 DATASETS.update({

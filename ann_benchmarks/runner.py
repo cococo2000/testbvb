@@ -116,7 +116,6 @@ def run_individual_query(
                     2. Result pairs consisting of (point index, distance to candidate data)
             """
             # TODO: consider using a dataclass to represent return value.
-            
             if prepared_queries:
                 algo.prepare_batch_query(X, count)
                 start = time.time()
@@ -217,7 +216,12 @@ def load_and_transform_dataset(dataset_name: str) -> Tuple:
         raise NotImplementedError("Multi-vector ann datasets are not supported yet.")
     elif dataset_type == "mm-ann":
         # multi-modal ann
-        raise NotImplementedError("Multi-modal ann datasets are not supported yet.")
+        X_train = np.array(D["train"])
+        X_test = np.array(D["modal_test"])
+        print(f"Got a train set of size ({X_train.shape[0]} * {dimension})")
+        print(f"Got {len(X_test)} queries")
+        train, test = dataset_transform(D)
+        return dataset_type, distance, (train, test)
     else:
         # dataset_type = ann
         X_train = np.array(D["train"])
@@ -315,7 +319,7 @@ def run(
     elif dataset_type == "mv-ann":
         raise NotImplementedError("Multi-vector ann datasets are not supported yet.")
     elif dataset_type == "mm-ann":
-        raise NotImplementedError("Multi-modal ann datasets are not supported yet.")
+        X_train, X_test = data
     else:
         # dataset_type == "ann"
         X_train, X_test = data
@@ -329,7 +333,7 @@ def run(
     elif dataset_type == "mv-ann":
         raise NotImplementedError("Multi-vector ann datasets are not supported yet.")
     elif dataset_type == "mm-ann":
-        raise NotImplementedError("Multi-modal ann datasets are not supported yet.")
+        insert_time, data_size = insert_data(algo, X_train)
     else:
         # dataset_type == "ann"
         insert_time, data_size = insert_data(algo, X_train)
@@ -351,7 +355,7 @@ def run(
         elif dataset_type == "mv-ann":
             raise NotImplementedError("Multi-vector ann datasets are not supported yet.")
         elif dataset_type == "mm-ann":
-            raise NotImplementedError("Multi-modal ann datasets are not supported yet.")
+            descriptor, results = run_individual_query(algo, X_train, X_test, distance, count, run_count, batch)
         else:
             descriptor, results = run_individual_query(algo, X_train, X_test, distance, count, run_count, batch)
         descriptor.update({
