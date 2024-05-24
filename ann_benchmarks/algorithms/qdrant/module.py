@@ -1,203 +1,227 @@
-from time import sleep, time
-from typing import Iterable, List, Any
-
+""" Qdrant module for ANN_Benchmarks framework. """
+import subprocess
+from time import sleep
+from typing import List
+import docker
 import numpy as np
-from qdrant_client import QdrantClient
-from qdrant_client import grpc
-from qdrant_client.http.models import (
-    CollectionStatus,
-    Distance,
-    VectorParams,
-    OptimizersConfigDiff,
-    ScalarQuantization,
-    ScalarQuantizationConfig,
-    BinaryQuantization,
-    BinaryQuantizationConfig,
-    ScalarType,
-    HnswConfigDiff,
-)
+
+from qdrant_client import QdrantClient, models
+from qdrant_client.models import Distance, VectorParams, Filter, FieldCondition
+from qdrant_client.http.models import PointStruct, CollectionStatus
 
 from ann_benchmarks.algorithms.base.module import BaseANN
 
-TIMEOUT = 30
-BATCH_SIZE = 128
+def metric_mapping(_metric: str):
+    """
+    Mapping metric type to Qdrant distance metric
+
+    Args:
+        _metric (str): metric type
+
+    Returns:
+        str: Qdrant distance metric type
+    """
+    _metric = _metric.lower()
+    _metric_type = {
+        "dot": Distance.DOT,
+        "angular": Distance.COSINE,
+        "euclidean": Distance.EUCLID
+    }.get(_metric, None)
+    if _metric_type is None:
+        raise ValueError(f"[Qdrant] Not support metric type: {_metric}!!!")
+    return _metric_type
 
 
 class Qdrant(BaseANN):
-    _distances_mapping = {"dot": Distance.DOT, "angular": Distance.COSINE, "euclidean": Distance.EUCLID}
-
-    def __init__(self, metric, quantization, m, ef_construct):
-        self._ef_construct = ef_construct
-        self._m = m
+    def __init__(self, metric, m, ef_construct):
         self._metric = metric
-        self._collection_name = "ann_benchmarks_test"
-        self._quantization_mode = quantization
-        self._grpc = True
-        self._search_params = {"hnsw_ef": None, "rescore": True}
-        self.batch_results = []
-        self.batch_latencies = []
+        self._metric_type = metric_mapping(metric)
+        self._collection_name = "qdrant_test"
+        self._m = m
+        self._ef_construct = ef_construct
+        self.docker_client = None
+        self.docker_name = "qdrant"
+        self.container = None
+        self.start_container()
+        self.client = QdrantClient(url="http://localhost:6333", timeout=10)
+        print("[qdrant] client connected successfully!!!")
+        self.num_labels = 0
+        if self.client.collection_exists(self._collection_name):
+            print("[qdrant] collection already exists!!!")
+            self.client.delete_collection(self._collection_name)
+            print("[qdrant] collection deleted successfully!!!")
+        self.name = f"Qdrant metric:{metric} m:{m} ef_construct:{ef_construct}"
+        self.search_params = None
 
-        qdrant_client_params = {
-            "host": "localhost",
-            "port": 6333,
-            "grpc_port": 6334,
-            "prefer_grpc": self._grpc,
-            "https": False,
-        }
-        self._client = QdrantClient(**qdrant_client_params)
+    def start_container(self) -> None:
+        """
+        Start qdrant by docker run
+        """
+        self.docker_client = docker.from_env()
+        if self.docker_client.containers.list(filters={"name": self.docker_name}) != []:
+            print("[qdrant] docker container already exists!!!")
+            self.container = self.docker_client.containers.get(self.docker_name)
+            self.stop_container()
+        subprocess.run(["docker", "pull", "qdrant/qdrant:v1.9.2"], check=True)
+        self.container = self.docker_client.containers.run(
+            "qdrant/qdrant:v1.9.2",
+            name=self.docker_name,
+            volumes={
+                "/tmp/qdrant_storage": {
+                    "bind": "/qdrant/storage",
+                    "mode": "z"
+                }
+            },
+            ports={
+                "6333/tcp": 6333,
+                "6334/tcp": 6334
+            },
+            detach=True
+        )
+        print("[qdrant] docker start successfully!!!")
+        sleep(10)
 
-    def fit(self, X):
-        if X.dtype != np.float32:
-            X = X.astype(np.float32)
+    def stop_container(self) -> None:
+        """
+        Stop qdrant
+        """
+        self.container.stop()
+        self.container.remove(force=True)
+        print("[qdrant] docker stop successfully!!!")
 
-        quantization_config = None
-        if self._quantization_mode == "scalar":
-            quantization_config = ScalarQuantization(
-                scalar=ScalarQuantizationConfig(
-                    always_ram=True,
-                    quantile=0.99,
-                    type=ScalarType.INT8,
+    def load_data(
+            self,
+            embeddings: np.array,
+            labels: np.ndarray | None = None,
+            label_names: list[str] | None = None,
+            label_types: list[str] | None = None,
+            ) -> None:
+        dimensions = embeddings.shape[1]
+        num_labels = len(label_names) if label_names is not None else 0
+        self.num_labels = num_labels
+        print(f"[qdrant] load data with {num_labels} labels!!!")
+        self.client.create_collection(
+            collection_name=self._collection_name,
+            vectors_config=VectorParams(
+                size=dimensions,
+                distance=self._metric_type,
+                hnsw_config=models.HnswConfigDiff(
+                    m=self._m,
+                    ef_construct=self._ef_construct,
+                ),
+                quantization_config=models.ProductQuantization(
+                    product=models.ProductQuantizationConfig(
+                        compression=models.CompressionRatio.X32,
+                        always_ram=True
+                    )
                 )
+            ),
+        )
+        print("[qdrant] collection created successfully!!!")
+        print(f"[qdrant] Start uploading {len(embeddings)} vectors!!!")
+        batch_size = 1000
+        for i in range(0, len(embeddings), batch_size):
+            points = []
+            for j in range(i, min(i + batch_size, len(embeddings))):
+                payload = {}
+                if num_labels > 0:
+                    for k in range(num_labels):
+                        payload[label_names[k]] = int(labels[j][k])
+                points.append(PointStruct(
+                    id=j,
+                    vector=embeddings[j],
+                    payload=payload
+                ))
+            self.client.upsert(
+                collection_name=self._collection_name,
+                points=points,
+                wait=True
             )
-        elif self._quantization_mode == "binary":
-            quantization_config = BinaryQuantization(
-                binary=BinaryQuantizationConfig(always_ram=True)
-            )
-
-        # Disabling indexing during bulk upload
-        # https://qdrant.tech/documentation/tutorials/bulk-upload/#disable-indexing-during-upload
-        # Uploading to multiple shards
-        # https://qdrant.tech/documentation/tutorials/bulk-upload/#parallel-upload-into-multiple-shards
-        self._client.recreate_collection(
-            collection_name=self._collection_name,
-            shard_number=2,
-            vectors_config=VectorParams(size=X.shape[1], distance=self._distances_mapping[self._metric]),
-            optimizers_config=OptimizersConfigDiff(
-                default_segment_number=2,
-                memmap_threshold=20000,
-                indexing_threshold=0,
-            ),
-            quantization_config=quantization_config,
-            # TODO: benchmark this as well
-            hnsw_config=HnswConfigDiff(
-                ef_construct=self._ef_construct,
-                m=self._m,
-            ),
-            timeout=TIMEOUT,
-        )
-
-        self._client.upload_collection(
-            collection_name=self._collection_name,
-            vectors=X,
-            ids=list(range(X.shape[0])),
-            batch_size=BATCH_SIZE,
-            parallel=1,
-        )
-
-        # Re-enabling indexing
-        self._client.update_collection(
-            collection_name=self._collection_name,
-            optimizers_config=OptimizersConfigDiff(
-                indexing_threshold=20000,
-            ),
-            timeout=TIMEOUT,
-        )
-
+        print(f"[qdrant] Uploaded {len(embeddings)} vectors successfully!!!")
         # wait for vectors to be fully indexed
-        SECONDS_WAITING_FOR_INDEXING_API_CALL = 5
-
         while True:
-            sleep(SECONDS_WAITING_FOR_INDEXING_API_CALL)
-            collection_info = self._client.get_collection(self._collection_name)
+            sleep(5)
+            collection_info = self.client.get_collection(self._collection_name)
             if collection_info.status != CollectionStatus.GREEN:
                 continue
-            sleep(SECONDS_WAITING_FOR_INDEXING_API_CALL)  # the flag is sometimes flacky, better double check
-            collection_info = self._client.get_collection(self._collection_name)
-            if collection_info.status == CollectionStatus.GREEN:
-                print(f"Stored vectors: {collection_info.vectors_count}")
-                print(f"Indexed vectors: {collection_info.indexed_vectors_count}")
-                print(f"Collection status: {collection_info.indexed_vectors_count}")
+            else:
+                print(f"[qdrant] Point count: {collection_info.points_count}")
+                print(f"[qdrant] Stored vectors: {collection_info.vectors_count}")
+                print(f"[qdrant] Indexed vectors: {collection_info.indexed_vectors_count}")
+                print(f"[qdrant] Collection status: {collection_info.status}")
                 break
 
-    def set_query_arguments(self, hnsw_ef, rescore):
-        self._search_params["hnsw_ef"] = hnsw_ef
-        self._search_params["rescore"] = rescore
+    def create_index(self):
+        """ Qdrant has already created index during data upload """
+        return
 
-    def query(self, q, n):
-        search_request = grpc.SearchPoints(
+    def set_query_arguments(self, ef, exact):
+        """
+        Set query arguments for weaviate query with hnsw index
+        """
+        self.search_params = models.SearchParams(hnsw_ef=ef, exact=exact)
+        self.name = f"Qdrant metric:{self._metric} m:{self._m} ef_construct:{self._ef_construct} ef:{ef} exact:{exact}"
+
+    def convert_expr_to_filter(self, expr: str):
+        """
+        Convert a filter expression to a Filter object list
+
+        Args:
+            expr (str): filter expression. Example: "age > 20 and height < 180 or weight == 70"
+
+        Returns:
+            Filter: Filter object for qdrant query
+        """
+        tokens = expr.split()
+        must_filters = []
+        must_not_filters = []
+
+        i = 1
+        while i < len(tokens):
+            if tokens[i] == "and":
+                i += 2
+            elif tokens[i] == "or":
+                raise ValueError(f"[qdrant] we have not supported 'or' operator in expression!!!, expr: {expr}")
+            elif tokens[i] in ["==", ">=", "<=", ">", "<", "!="]:
+                left = tokens[i - 1]
+                operator = tokens[i]
+                right = tokens[i + 1]
+                # print(f"[qdrant] left: {left}, operator: {operator}, right: {right}")
+                i += 4
+                if operator == ">=":
+                    must_filters.append(FieldCondition(key=left, range=models.Range(gte=int(right))))
+                elif operator == "<=":
+                    must_filters.append(FieldCondition(key=left, range=models.Range(lte=int(right))))
+                elif operator == ">":
+                    must_filters.append(FieldCondition(key=left, range=models.Range(gt=int(right))))
+                elif operator == "<":
+                    must_filters.append(FieldCondition(key=left, range=models.Range(lt=int(right))))
+                elif operator == "==":
+                    must_filters.append(FieldCondition(key=left, match=models.MatchValue(value=int(right))))
+                elif operator == "!=":
+                    must_not_filters.append(FieldCondition(key=left, match=models.MatchValue(value=int(right))))
+            else:
+                raise ValueError(f"[qdrant] Unsupported operator: {tokens[i]}")
+        return must_filters, must_not_filters
+
+    def query(self, v, n, expr=None):
+        must_filters, must_not_filters = self.convert_expr_to_filter(expr)
+        # print(f"[qdrant] must_filters: {must_filters}")
+        # print(f"[qdrant] must_not_filters: {must_not_filters}")
+        ret = self.client.search(
             collection_name=self._collection_name,
-            vector=q.tolist(),
-            limit=n,
-            with_payload=grpc.WithPayloadSelector(enable=False),
-            with_vectors=grpc.WithVectorsSelector(enable=False),
-            params=grpc.SearchParams(
-                hnsw_ef=self._search_params["hnsw_ef"],
-                quantization=grpc.QuantizationSearchParams(
-                    ignore=False,
-                    rescore=self._search_params["rescore"],
-                ),
+            query_vector=v,
+            query_filter=Filter(
+                must = must_filters,
+                must_not = must_not_filters
             ),
+            search_params=self.search_params,
+            limit=n,
         )
+        return [point.id for point in ret]
 
-        search_result = self._client.grpc_points.Search(search_request, timeout=TIMEOUT)
-        result_ids = [point.id.num for point in search_result.result]
-        return result_ids
-
-    def batch_query(self, X, n):
-        def iter_batches(iterable, batch_size) -> Iterable[List[Any]]:
-            """Iterate over `iterable` in batches of size `batch_size`."""
-            batch = []
-            for item in iterable:
-                batch.append(item)
-                if len(batch) >= batch_size:
-                    yield batch
-                    batch = []
-            if batch:
-                yield batch
-
-        quantization_search_params = grpc.QuantizationSearchParams(
-            ignore=False,
-            rescore=self._search_params["rescore"],
-        )
-
-        search_queries = [
-            grpc.SearchPoints(
-                collection_name=self._collection_name,
-                vector=q.tolist(),
-                limit=n,
-                with_payload=grpc.WithPayloadSelector(enable=False),
-                with_vectors=grpc.WithVectorsSelector(enable=False),
-                params=grpc.SearchParams(
-                    hnsw_ef=self._search_params["hnsw_ef"],
-                    quantization=quantization_search_params,
-                ),
-            )
-            for q in X
-        ]
-
-        self.batch_results = []
-
-        for request_batch in iter_batches(search_queries, BATCH_SIZE):
-            start = time()
-            grpc_res: grpc.SearchBatchResponse = self._client.grpc_points.SearchBatch(
-                grpc.SearchBatchPoints(
-                    collection_name=self._collection_name,
-                    search_points=request_batch,
-                    read_consistency=None,
-                ),
-                timeout=TIMEOUT,
-            )
-            self.batch_latencies.extend([time() - start] * len(request_batch))
-
-            for r in grpc_res.result:
-                self.batch_results.append([hit.id.num for hit in r.result])
-
-    def get_batch_results(self):
-        return self.batch_results
-
-    def get_batch_latencies(self):
-        return self.batch_latencies
-
-    def __str__(self):
-        hnsw_ef = self._search_params["hnsw_ef"]
-        return f"Qdrant(quantization={self._quantization_mode}, hnsw_ef={hnsw_ef})"
+    def done(self):
+        self.client.delete_collection(self._collection_name)
+        print("[qdrant] collection deleted successfully!!!")
+        self.client.close()
+        self.stop_container()

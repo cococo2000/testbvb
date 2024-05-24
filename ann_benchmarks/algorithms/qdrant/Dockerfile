@@ -1,23 +1,20 @@
-ARG QDRANT_VERSION=1.5.1
-ARG QDRANT_CLIENT_VERSION=1.5.4
-FROM qdrant/qdrant:v${QDRANT_VERSION}
+FROM ann-benchmarks
 
-ARG QDRANT_CLIENT_VERSION
-WORKDIR /home/app
-COPY requirements.txt .
+# Add Docker's official GPG key:
+RUN apt-get update
+RUN apt-get install ca-certificates curl
+RUN install -m 0755 -d /etc/apt/keyrings
+RUN curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+RUN chmod a+r /etc/apt/keyrings/docker.asc
 
-RUN apt-get update \
- && apt-get install -y python3-pip build-essential python3-h5py \
- && python3 -m pip install --break-system-packages --upgrade pip setuptools wheel \
- && python3 -m pip install --break-system-packages -r requirements.txt \
- && python3 -m pip install --break-system-packages qdrant-client==${QDRANT_CLIENT_VERSION}
+# Add the repository to Apt sources:
+RUN echo \
+    "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
+    $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+    tee /etc/apt/sources.list.d/docker.list > /dev/null
 
-COPY run_algorithm.py .
+RUN apt-get update 
+RUN apt-get install -y docker-ce-cli docker-compose-plugin
 
-RUN printf '#!/bin/bash\n\
-cd /qdrant && ./qdrant &\n\
-sleep 5\n\
-python3 -u run_algorithm.py "$@"' > entrypoint.sh \
- && chmod u+x entrypoint.sh
-
-ENTRYPOINT ["/home/app/entrypoint.sh"]
+RUN pip install qdrant-client==1.9.1
+RUN python3 -c "from qdrant_client import QdrantClient"

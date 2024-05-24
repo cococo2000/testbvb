@@ -14,7 +14,8 @@ RUN echo \
     tee /etc/apt/sources.list.d/docker.list > /dev/null
 
 RUN apt-get update 
-RUN apt-get install -y wget docker-ce-cli docker-compose-plugin
+RUN apt-get install -y docker-ce-cli docker-compose-plugin
+RUN apt-get install -y wget
 
 RUN pip3 install pymilvus==2.4.1
 RUN python3 -c "from pymilvus import Collection"
