@@ -353,14 +353,16 @@ def main():
         dimension=dimension,
         point_type=dataset.attrs.get("point_type", "float"),
         distance_metric=dataset.attrs["distance"],
-        count=args.count
+        count=args.count,
+        base_dir=args.definitions,
     )
     random.shuffle(definitions)
 
-    definitions = filter_already_run_definitions(definitions, 
-        dataset=args.dataset, 
-        count=args.count, 
-        batch=args.batch, 
+    definitions = filter_already_run_definitions(
+        definitions,
+        dataset=args.dataset,
+        count=args.count,
+        batch=args.batch,
         force=args.force,
     )
 

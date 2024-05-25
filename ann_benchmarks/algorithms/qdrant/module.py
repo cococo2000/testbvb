@@ -205,7 +205,11 @@ class Qdrant(BaseANN):
         return must_filters, must_not_filters
 
     def query(self, v, n, expr=None):
-        must_filters, must_not_filters = self.convert_expr_to_filter(expr)
+        if expr is not None:
+            must_filters, must_not_filters = self.convert_expr_to_filter(expr)
+        else:
+            must_filters = []
+            must_not_filters = []
         # print(f"[qdrant] must_filters: {must_filters}")
         # print(f"[qdrant] must_not_filters: {must_not_filters}")
         ret = self.client.search(
