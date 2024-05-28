@@ -1,7 +1,6 @@
 """ Qdrant module for ANN_Benchmarks framework. """
 import subprocess
-from time import sleep
-from typing import List
+from time import sleep, time
 import docker
 import numpy as np
 
@@ -46,12 +45,22 @@ class Qdrant(BaseANN):
         self.client = QdrantClient(url="http://localhost:6333", timeout=10)
         print("[qdrant] client connected successfully!!!")
         self.num_labels = 0
+        self.load_batch_size = 1000
+        self.query_batch_size = 100
         if self.client.collection_exists(self._collection_name):
             print("[qdrant] collection already exists!!!")
             self.client.delete_collection(self._collection_name)
             print("[qdrant] collection deleted successfully!!!")
         self.name = f"Qdrant metric:{metric} m:{m} ef_construct:{ef_construct}"
         self.search_params = None
+        self.query_vector = None
+        self.query_topk = None
+        self.query_filter_must = None
+        self.query_filter_must_not = None
+        self.prepare_query_results = None
+        self.batch_search_queries = []
+        self.batch_results = []
+        self.batch_latencies = []
 
     def start_container(self) -> None:
         """
@@ -105,24 +114,18 @@ class Qdrant(BaseANN):
             vectors_config=VectorParams(
                 size=dimensions,
                 distance=self._metric_type,
-                hnsw_config=models.HnswConfigDiff(
-                    m=self._m,
-                    ef_construct=self._ef_construct,
-                ),
-                quantization_config=models.ProductQuantization(
-                    product=models.ProductQuantizationConfig(
-                        compression=models.CompressionRatio.X32,
-                        always_ram=True
-                    )
-                )
+                on_disk=True
             ),
+            optimizers_config=models.OptimizersConfigDiff(
+                indexing_threshold=0,
+            ),
+            on_disk_payload=True
         )
         print("[qdrant] collection created successfully!!!")
-        print(f"[qdrant] Start uploading {len(embeddings)} vectors!!!")
-        batch_size = 1000
-        for i in range(0, len(embeddings), batch_size):
+        print(f"[qdrant] Start uploading {len(embeddings)} vectors...")
+        for i in range(0, len(embeddings), self.load_batch_size):
             points = []
-            for j in range(i, min(i + batch_size, len(embeddings))):
+            for j in range(i, min(i + self.load_batch_size, len(embeddings))):
                 payload = {}
                 if num_labels > 0:
                     for k in range(num_labels):
@@ -153,7 +156,20 @@ class Qdrant(BaseANN):
 
     def create_index(self):
         """ Qdrant has already created index during data upload """
-        return
+        self.client.update_collection(
+            collection_name=self._collection_name,
+            hnsw_config=models.HnswConfigDiff(
+                m=self._m,
+                ef_construct=self._ef_construct,
+            ),
+            quantization_config=models.ProductQuantization(
+                product=models.ProductQuantizationConfig(
+                    compression=models.CompressionRatio.X32,
+                    always_ram=True
+                )
+            ),
+            optimizer_config=models.OptimizersConfigDiff(indexing_threshold=20000)
+        )
 
     def set_query_arguments(self, ef, exact):
         """
@@ -223,6 +239,106 @@ class Qdrant(BaseANN):
             limit=n,
         )
         return [point.id for point in ret]
+
+    def prepare_query(
+            self,
+            v : np.array,
+            n : int,
+            expr : str | None = None
+            ) -> None:
+        self.query_vector = v
+        self.query_topk = n
+        if expr is not None:
+            self.query_filter_must, self.query_filter_must_not = self.convert_expr_to_filter(expr)
+
+    def run_prepared_query(self) -> None:
+        ret = self.client.search(
+            collection_name=self._collection_name,
+            query_vector=self.query_vector,
+            query_filter=Filter(
+                must = self.query_filter_must,
+                must_not = self.query_filter_must_not
+            ),
+            search_params=self.search_params,
+            limit=self.query_topk,
+        )
+        self.prepare_query_results = [point.id for point in ret]
+
+    def get_prepared_query_results(self) -> list[int]:
+        """
+        Get prepared query results
+
+        Returns:
+            list[int]: An array of indices representing the nearest neighbors.
+        """
+        return self.prepare_query_results
+
+    def prepare_batch_query(
+            self,
+            X: np.ndarray,
+            n: int,
+            exprs: list[str] | None = None
+            ) -> None:
+        if exprs is not None:
+            batch_query_filters_must = []
+            batch_query_filters_must_not = []
+            for expr in exprs:
+                must_filters, must_not_filters = self.convert_expr_to_filter(expr)
+                batch_query_filters_must.append(must_filters)
+                batch_query_filters_must_not.append(must_not_filters)
+        else:
+            batch_query_filters_must = None
+            batch_query_filters_must_not = None
+        for i in range(0, len(X), self.query_batch_size):
+            search_queries = []
+            for j in range(i, min(i + self.query_batch_size, len(X))):
+                search_queries.append(
+                    models.SearchRequest(
+                        vector=X[j],
+                        filter=Filter(
+                            must=batch_query_filters_must[j]
+                                if batch_query_filters_must is not None
+                                else [],
+                            must_not=
+                                batch_query_filters_must_not[j]
+                                if batch_query_filters_must_not is not None
+                                else [],
+                        ),
+                        params=self.search_params,
+                        limit=n
+                    )
+                )
+            self.batch_search_queries.append(search_queries)
+
+    def run_prepared_batch_query(self) -> None:
+        for search_queries in self.batch_search_queries:
+            start = time()
+            ret = self.client.search_batch(
+                collection_name=self._collection_name,
+                requests=search_queries
+            )
+            end = time()
+            self.batch_latencies.extend([(end - start) / len(search_queries)] * len(search_queries))
+            for result in ret:
+                self.batch_results.append([point.id for point in result])
+
+    def get_batch_results(self) -> list[list[int]]:
+        """
+        Get batch query results
+
+        Returns:
+            list[list[int]]: An array of arrays of indices representing the nearest neighbors.
+        """
+        return self.batch_results
+
+    def get_batch_latencies(self) -> list[float]:
+        """
+        Get batch query latencies
+
+        Returns:
+            list[float]: An array of latencies for each query.
+        """
+        return self.batch_latencies
 
     def done(self):
         self.client.delete_collection(self._collection_name)

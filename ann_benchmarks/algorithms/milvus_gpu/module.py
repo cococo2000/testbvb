@@ -1,12 +1,18 @@
 """ Milvus GPU module with CAGRA, IVFPQ, IVFFLAT, BF index """
 
-import subprocess
-from pymilvus import DataType, connections, utility, Collection, CollectionSchema, FieldSchema
-
 from ann_benchmarks.algorithms.milvus.module import Milvus
 
 
 def metric_mapping(_metric: str):
+    """
+    Mapping metric type to milvus metric type
+
+    Args:
+        _metric (str): metric type
+
+    Returns:
+        str: milvus metric type
+    """
     _metric_type = {"euclidean": "L2"}.get(_metric, None)
     if _metric_type is None:
         raise ValueError(f"[Milvus] Not support metric type: {_metric}!!!")
@@ -14,6 +20,7 @@ def metric_mapping(_metric: str):
 
 
 class MilvusGPU_BF(Milvus):
+    """ Milvus GPU Brute Force index """
     def __init__(self, metric, dim):
         super().__init__(metric, dim)
         self.name = f"MilvusGPU_BRUTE_FORCE metric:{self._metric}"
@@ -41,6 +48,7 @@ class MilvusGPU_BF(Milvus):
 
 
 class MilvusGPU_IVFFLAT(Milvus):
+    """ Milvus GPU IVFFLAT index """
     def __init__(self, metric, dim, index_param):
         super().__init__(metric, dim)
         self._index_nlist = index_param.get("nlist", None)
@@ -63,6 +71,7 @@ class MilvusGPU_IVFFLAT(Milvus):
 
 
 class MilvusGPU_IVFPQ(Milvus):
+    """ Milvus GPU IVFPQ index """
     def __init__(self, metric, dim, index_param):
         super().__init__(metric, dim)
         self._index_nlist = index_param.get("nlist", None)
@@ -90,6 +99,7 @@ class MilvusGPU_IVFPQ(Milvus):
 
 
 class MilvusGPU_CAGRA(Milvus):
+    """ Milvus GPU CAGRA index """
     def __init__(self, metric, dim, index_param):
         super().__init__(metric, dim)
         self._index_intermediate_graph_degree = index_param.get("intermediate_graph_degree", None)

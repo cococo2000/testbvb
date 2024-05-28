@@ -78,6 +78,8 @@ class BaseANN(object):
         Args:
             X (np.array): An array of vectors to find the nearest neighbors of.
             n (int): The number of nearest neighbors to return for each query.
+            exprs (list[str]): The search expressions for each query.
+
         Returns: 
             None: self.get_batch_results() is responsible for retrieving batch result
         """

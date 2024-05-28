@@ -1,6 +1,7 @@
 """ Milvus CPU module with FLAT, IVFFLAT, IVFSQ8, IVFPQ, HNSW, SCANN index """
 import subprocess
 import numpy as np
+from time import time
 from pymilvus import DataType, connections, utility, Collection, CollectionSchema, FieldSchema
 
 from ann_benchmarks.algorithms.base.module import BaseANN
@@ -41,6 +42,8 @@ class Milvus(BaseANN):
         print(f"[Milvus] Milvus version: {utility.get_server_version()}")
         self.collection_name = "test_milvus"
         self.collection = None
+        self.load_batch_size = 1000
+        self.query_batch_size = 1000
         self.num_labels = 0
         self.search_params = {
             "metric_type": self._metric_type
@@ -49,6 +52,14 @@ class Milvus(BaseANN):
         if utility.has_collection(self.collection_name):
             print(f"[Milvus] collection {self.collection_name} already exists, drop it...")
             utility.drop_collection(self.collection_name)
+        self.query_vector = None
+        self.query_topk = 0
+        self.query_expr = None
+        self.prepare_query_results = None
+        self.batch_query_vectors = None
+        self.batch_query_exprs = None
+        self.batch_results = []
+        self.batch_latencies = []
 
     def start_milvus(self) -> None:
         """
@@ -147,20 +158,19 @@ class Milvus(BaseANN):
             embeddings (np.ndarray): embeddings
             labels (np.ndarray): labels
         """
-        batch_size = 1000
         if labels is not None:
             num_labels = len(labels[0])
             print(f"[Milvus] Insert {len(embeddings)} data with {num_labels} labels  into collection {self.collection_name}...")
         else:
             print(f"[Milvus] Insert {len(embeddings)} data into collection {self.collection_name}...")
-        for i in range(0, len(embeddings), batch_size):
-            batch_data = embeddings[i : min(i + batch_size, len(embeddings))]
+        for i in range(0, len(embeddings), self.load_batch_size):
+            batch_data = embeddings[i : min(i + self.load_batch_size, len(embeddings))]
             entities = [
-                [i for i in range(i, min(i + batch_size, len(embeddings)))],
+                [i for i in range(i, min(i + self.load_batch_size, len(embeddings)))],
                 batch_data.tolist()
                 ]
             if labels is not None:
-                batch_labels = labels[i : min(i + batch_size, len(embeddings))]
+                batch_labels = labels[i : min(i + self.load_batch_size, len(embeddings))]
                 for j in range(num_labels):
                     entities.append(
                         [l[j] for l in batch_labels]
@@ -243,7 +253,7 @@ class Milvus(BaseANN):
             v (np.array): The vector to find the nearest neighbors of.
             n (int): The number of nearest neighbors to return.
             expr (str): The search expression
-        
+
         Returns:
             list[int]: An array of indices representing the nearest neighbors.
         """
@@ -257,6 +267,102 @@ class Milvus(BaseANN):
         )
         ids = [r.entity.get("id") for r in results[0]]
         return ids
+
+    def prepare_query(
+            self,
+            v : np.array,
+            n : int,
+            expr : str | None = None
+            ) -> None:
+        """
+        Prepare query
+
+        Args:
+            v (np.array): The vector to find the nearest neighbors of.
+            n (int): The number of nearest neighbors to return.
+            expr (str): The search expression
+        """
+        self.query_vector = v
+        self.query_topk = n
+        self.query_expr = expr
+
+    def run_prepared_query(self) -> None:
+        """
+        Run prepared query
+        """
+        self.prepare_query_results = self.query(self.query_vector, self.query_topk, self.query_expr)
+
+    def get_prepared_query_results(self) -> list[int]:
+        """
+        Get prepared query results
+
+        Returns:
+            list[int]: An array of indices representing the nearest neighbors.
+        """
+        return self.prepare_query_results
+
+    def prepare_batch_query(
+            self,
+            X: np.ndarray,
+            n: int,
+            exprs: list[str] | None = None
+            ) -> None:
+        """
+        Prepare batch query
+
+        Args:
+            X (np.array): An array of vectors to find the nearest neighbors of.
+            n (int): The number of nearest neighbors to return for each query.
+            exprs (list[str]): The search expressions for each query.
+        """
+        self.batch_query_vectors = X
+        self.query_topk = n
+        self.batch_query_exprs = exprs
+
+    def run_prepared_batch_query(self) -> None:
+        """
+        Run prepared batch query
+        """
+        if self.batch_query_exprs is None or len(set(self.batch_query_exprs)) == 1:
+            filter_expr = self.batch_query_exprs[0] if self.batch_query_exprs else None
+            for i in range(0, len(self.batch_query_vectors), self.query_batch_size):
+                batch_data = self.batch_query_vectors[i : min(i + self.query_batch_size, len(self.batch_query_vectors))]
+                start_time = time()
+                batch_results = self.collection.search(
+                    data=batch_data,
+                    anns_field="vector",
+                    param=self.search_params,
+                    expr=filter_expr,
+                    limit=self.query_topk,
+                    output_fields=["id"],
+                )
+                for r in batch_results:
+                    self.batch_results.append([e.entity.get("id") for e in r])
+                self.batch_latencies.extend([(time() - start_time) / len(batch_data)] * len(batch_data))
+        else:
+            # Not support different exprs for batch query
+            start_time = time()
+            self.batch_query(self.batch_query_vectors, self.query_topk, self.batch_query_exprs)
+            self.batch_latencies.extend([(time() - start_time) / len(self.batch_query_vectors)] * len(self.batch_query_vectors))
+            self.batch_results = super().get_batch_results()
+
+    def get_batch_results(self) -> list[list[int]]:
+        """
+        Get batch results
+
+        Returns:
+            list[list[int]]: An array of indices representing the nearest neighbors.
+        """
+        return self.batch_results
+
+    def get_batch_latencies(self) -> list[float]:
+        """
+        Get batch latencies
+
+        Returns:
+            list[float]: An array of latencies for each query.
+        """
+        return self.batch_latencies
 
     def done(self) -> None:
         """

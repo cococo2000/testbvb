@@ -47,12 +47,11 @@ def run_individual_query(
     Returns:
         tuple: A tuple with the attributes of the algorithm run and the results.
     """
-    prepared_queries = (batch and hasattr(algo, "prepare_batch_query")) or (
-        (not batch) and hasattr(algo, "prepare_query")
-    )
+    prepared_queries = (batch and hasattr(algo, "prepare_batch_query")) or ((not batch) and hasattr(algo, "prepare_query"))
 
     best_search_time = float("inf")
     if filter_expr_func is not None:
+        assert prepared_queries == True, "Filter expression can only be used with prepared queries"
         exec(filter_expr_func, globals())
         filter_expr = globals()["filter_expr"]
     for i in range(run_count):
@@ -75,16 +74,16 @@ def run_individual_query(
                     1. Total time taken for each query 
                     2. Result pairs consisting of (point index, distance to candidate data)
             """
+            expr = None
+            if filter_expr_func is not None:
+                expr = filter_expr(*labels)
             if prepared_queries:
-                algo.prepare_query(v, count)
+                algo.prepare_query(v, count, expr)
                 start = time.time()
                 algo.run_prepared_query()
                 total = time.time() - start
                 candidates = algo.get_prepared_query_results()
             else:
-                expr = None
-                if filter_expr_func is not None:
-                    expr = filter_expr(*labels)
                 start = time.time()
                 candidates = algo.query(v, count, expr)
                 total = time.time() - start
@@ -115,16 +114,16 @@ def run_individual_query(
                     1. Total time taken for each query 
                     2. Result pairs consisting of (point index, distance to candidate data)
             """
+            exprs = None
+            if filter_expr_func is not None:
+                exprs = [filter_expr(*labels) for labels in X_labels]
             # TODO: consider using a dataclass to represent return value.
             if prepared_queries:
                 algo.prepare_batch_query(X, count)
                 start = time.time()
-                algo.run_batch_query()
+                algo.run_prepared_batch_query()
                 total = time.time() - start
             else:
-                exprs = None
-                if filter_expr_func is not None:
-                    exprs = [filter_expr(*labels) for labels in X_labels]
                 start = time.time()
                 algo.batch_query(X, count, exprs)
                 total = time.time() - start
