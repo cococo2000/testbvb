@@ -303,7 +303,7 @@ class Milvus(BaseANN):
 
     def prepare_batch_query(
             self,
-            X: np.ndarray,
+            vectors: np.ndarray,
             n: int,
             exprs: list[str] | None = None
             ) -> None:
@@ -311,11 +311,11 @@ class Milvus(BaseANN):
         Prepare batch query
 
         Args:
-            X (np.array): An array of vectors to find the nearest neighbors of.
+            vectors (np.array): An array of vectors to find the nearest neighbors of.
             n (int): The number of nearest neighbors to return for each query.
             exprs (list[str]): The search expressions for each query.
         """
-        self.batch_query_vectors = X
+        self.batch_query_vectors = vectors
         self.query_topk = n
         self.batch_query_exprs = exprs
 
@@ -438,7 +438,7 @@ class MilvusIVFFLAT(Milvus):
         Set query arguments for IVF_FLAT index
 
         Args:
-            nprobe (int): nprobe
+            nprobe (int): the number of units to query
         """
         self.search_params = {
             "metric_type": self._metric_type,
@@ -475,7 +475,7 @@ class MilvusIVFSQ8(Milvus):
         Set query arguments for IVF_SQ8 index
 
         Args:
-            nprobe (int): nprobe
+            nprobe (int): the number of units to query
         """
         self.search_params = {
             "metric_type": self._metric_type,
@@ -517,7 +517,7 @@ class MilvusIVFPQ(Milvus):
         Set query arguments for IVF_PQ index
 
         Args:
-            nprobe (int): nprobe
+            nprobe (int): the number of units to query
         """
         self.search_params = {
             "metric_type": self._metric_type,
@@ -594,7 +594,7 @@ class MilvusSCANN(Milvus):
         Set query arguments for IVF_SQ8 index
 
         Args:
-            nprobe (int): nprobe
+            nprobe (int): the number of units to query
         """
         self.search_params = {
             "metric_type": self._metric_type,

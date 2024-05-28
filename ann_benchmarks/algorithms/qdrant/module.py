@@ -32,6 +32,7 @@ def metric_mapping(_metric: str):
 
 
 class Qdrant(BaseANN):
+    """ Qdrant implementation """
     def __init__(self, metric, m, ef_construct):
         self._metric = metric
         self._metric_type = metric_mapping(metric)
@@ -54,7 +55,7 @@ class Qdrant(BaseANN):
         self.name = f"Qdrant metric:{metric} m:{m} ef_construct:{ef_construct}"
         self.search_params = None
         self.query_vector = None
-        self.query_topk = None
+        self.query_topk = 0
         self.query_filter_must = None
         self.query_filter_must_not = None
         self.prepare_query_results = None
@@ -202,7 +203,6 @@ class Qdrant(BaseANN):
                 left = tokens[i - 1]
                 operator = tokens[i]
                 right = tokens[i + 1]
-                # print(f"[qdrant] left: {left}, operator: {operator}, right: {right}")
                 i += 4
                 if operator == ">=":
                     must_filters.append(FieldCondition(key=left, range=models.Range(gte=int(right))))
@@ -226,8 +226,6 @@ class Qdrant(BaseANN):
         else:
             must_filters = []
             must_not_filters = []
-        # print(f"[qdrant] must_filters: {must_filters}")
-        # print(f"[qdrant] must_not_filters: {must_not_filters}")
         ret = self.client.search(
             collection_name=self._collection_name,
             query_vector=v,
@@ -246,12 +244,25 @@ class Qdrant(BaseANN):
             n : int,
             expr : str | None = None
             ) -> None:
+        """
+        Prepare query
+
+        Args:
+            v (np.array): The vector to find the nearest neighbors of.
+            n (int): The number of nearest neighbors to return.
+            expr (str): The search expression
+        """
         self.query_vector = v
         self.query_topk = n
         if expr is not None:
             self.query_filter_must, self.query_filter_must_not = self.convert_expr_to_filter(expr)
+        else:
+            self.query_filter_must, self.query_filter_must_not = None, None
 
     def run_prepared_query(self) -> None:
+        """
+        Run prepared query
+        """
         ret = self.client.search(
             collection_name=self._collection_name,
             query_vector=self.query_vector,
@@ -275,10 +286,18 @@ class Qdrant(BaseANN):
 
     def prepare_batch_query(
             self,
-            X: np.ndarray,
+            vectors: np.ndarray,
             n: int,
             exprs: list[str] | None = None
             ) -> None:
+        """
+        Prepare batch query
+
+        Args:
+            vectors (np.array): An array of vectors to find the nearest neighbors of.
+            n (int): The number of nearest neighbors to return for each query.
+            exprs (list[str]): The search expressions for each query.
+        """
         if exprs is not None:
             batch_query_filters_must = []
             batch_query_filters_must_not = []
@@ -289,12 +308,12 @@ class Qdrant(BaseANN):
         else:
             batch_query_filters_must = None
             batch_query_filters_must_not = None
-        for i in range(0, len(X), self.query_batch_size):
+        for i in range(0, len(vectors), self.query_batch_size):
             search_queries = []
-            for j in range(i, min(i + self.query_batch_size, len(X))):
+            for j in range(i, min(i + self.query_batch_size, len(vectors))):
                 search_queries.append(
                     models.SearchRequest(
-                        vector=X[j],
+                        vector=vectors[j],
                         filter=Filter(
                             must=batch_query_filters_must[j]
                                 if batch_query_filters_must is not None
@@ -311,6 +330,9 @@ class Qdrant(BaseANN):
             self.batch_search_queries.append(search_queries)
 
     def run_prepared_batch_query(self) -> None:
+        """
+        Run prepared batch query
+        """
         for search_queries in self.batch_search_queries:
             start = time()
             ret = self.client.search_batch(

@@ -60,6 +60,10 @@ class Weaviate(BaseANN):
         self.name = f"Weaviate metric:{metric}"
         if self.client.collections.exists(self.collection_name):
             self.client.collections.delete(self.collection_name)
+        self.query_vector = None
+        self.query_topk = 0
+        self.query_filters = None
+        self.prepare_query_results = None
 
     def start_weaviate(self) -> None:
         """
@@ -158,6 +162,44 @@ class Weaviate(BaseANN):
         ids = [int(o.uuid) for o in ret.objects]
         return ids
 
+    def prepare_query(
+            self,
+            v : np.array,
+            n : int,
+            expr : str | None = None
+            ) -> None:
+        """
+        Prepare query
+
+        Args:
+            v (np.array): The vector to find the nearest neighbors of.
+            n (int): The number of nearest neighbors to return.
+            expr (str): The search expression
+        """
+        self.query_vector = v.tolist()
+        self.query_topk = n
+        self.query_filters = eval(convert_conditions_to_filters(expr)) if expr is not None else None
+
+    def run_prepared_query(self) -> None:
+        """
+        Run prepared query
+        """
+        ret = self.collection.query.near_vector(
+            near_vector=self.query_vector,
+            limit=self.query_topk,
+            filters=self.query_filters,
+        )
+        self.prepare_query_results = [int(o.uuid) for o in ret.objects]
+
+    def get_prepared_query_results(self) -> list[int]:
+        """
+        Get prepared query results
+
+        Returns:
+            list[int]: An array of indices representing the nearest neighbors.
+        """
+        return self.prepare_query_results
+
     def done(self):
         self.client.close()
         self.stop_weaviate()
@@ -222,7 +264,7 @@ class WeaviateHNSW(Weaviate):
         """
         Set query arguments for weaviate query with hnsw index
         """
-        self.collection.config.update(  
+        self.collection.config.update(
             vectorizer_config=Reconfigure.VectorIndex.hnsw(
                 ef=ef
             )
