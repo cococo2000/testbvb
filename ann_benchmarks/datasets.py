@@ -607,6 +607,9 @@ DATASETS: Dict[str, Callable[[str], None]] = {
     "ag_news-eudlidean-filter": ag_news,
     "gpt4vision-euclidean-mm": gpt4vision,
     "librispeech_asr-euclidean-mm": librispeech_asr,
+    "app_reviews_euclidean": app_reviews,
+    "cc_news_euclidean": cc_news,
+    "ag_news_euclidean": ag_news
 }
 
 DATASETS.update({
