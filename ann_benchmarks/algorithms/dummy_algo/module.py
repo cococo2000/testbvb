@@ -1,25 +1,23 @@
+""" Dummy algorithm that returns random indices. """
 import numpy as np
 
 from ann_benchmarks.algorithms.base.module import BaseANN
 
 
-class DummyAlgoMt(BaseANN):
+class DummyAlgo(BaseANN):
+    """ Dummy algorithm that returns random indices. """
     def __init__(self, metric):
-        self.name = "DummyAlgoMultiThread"
+        self.name = "DummyAlgo"
+        self.len = 0
 
-    def fit(self, X):
-        self.len = len(X) - 1
+    def load_data(
+        self,
+        embeddings: np.array,
+        labels: np.ndarray | None = None,
+        label_names: list[str] | None = None,
+        label_types: list[str] | None = None,
+    ) -> None:
+        self.len = len(embeddings)
 
-    def query(self, v, n):
-        return np.random.randint(self.len, size=n)
-
-
-class DummyAlgoSt(BaseANN):
-    def __init__(self, metric):
-        self.name = "DummyAlgoSingleThread"
-
-    def fit(self, X):
-        self.len = len(X) - 1
-
-    def query(self, v, n):
+    def query(self, v, n, filter_expr=None):
         return np.random.randint(self.len, size=n)

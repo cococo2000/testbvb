@@ -51,7 +51,7 @@ def run_individual_query(
 
     best_search_time = float("inf")
     if filter_expr_func is not None:
-        assert prepared_queries == True, "Filter expression can only be used with prepared queries"
+        # assert prepared_queries == True, "Filter expression can only be used with prepared queries"
         exec(filter_expr_func, globals())
         filter_expr = globals()["filter_expr"]
     for i in range(run_count):

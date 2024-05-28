@@ -64,6 +64,10 @@ class Weaviate(BaseANN):
         self.query_topk = 0
         self.query_filters = None
         self.prepare_query_results = None
+        self.batch_query_vectors = None
+        self.batch_query_filters = None
+        self.batch_results = []
+        self.batch_latencies = []
 
     def start_weaviate(self) -> None:
         """
@@ -149,15 +153,11 @@ class Weaviate(BaseANN):
         # Weaviate has already created the index before loading the data
         pass
 
-    def query(self, v, n, expr=None):
-        if expr is not None:
-            filters = eval(convert_conditions_to_filters(expr))
-        else:
-            filters = None
+    def query(self, v, n, filter_expr=None):
         ret = self.collection.query.near_vector(
-            near_vector=v.tolist(),
+            near_vector=v.tolist() if isinstance(v, np.ndarray) else v,
             limit=n,
-            filters=filters,
+            filters=filter_expr,
         )
         ids = [int(o.uuid) for o in ret.objects]
         return ids
@@ -184,12 +184,7 @@ class Weaviate(BaseANN):
         """
         Run prepared query
         """
-        ret = self.collection.query.near_vector(
-            near_vector=self.query_vector,
-            limit=self.query_topk,
-            filters=self.query_filters,
-        )
-        self.prepare_query_results = [int(o.uuid) for o in ret.objects]
+        self.prepare_query_results = self.query(self.query_vector, self.query_topk, self.query_filters)
 
     def get_prepared_query_results(self) -> list[int]:
         """
@@ -199,6 +194,54 @@ class Weaviate(BaseANN):
             list[int]: An array of indices representing the nearest neighbors.
         """
         return self.prepare_query_results
+
+    def prepare_batch_query(
+            self,
+            vectors: np.ndarray,
+            n: int,
+            exprs: list[str] | None = None
+            ) -> None:
+        """
+        Prepare batch query
+
+        Args:
+            vectors (np.array): An array of vectors to find the nearest neighbors of.
+            n (int): The number of nearest neighbors to return for each query.
+            exprs (list[str]): The search expressions for each query.
+        """
+        self.batch_query_vectors = vectors
+        self.query_topk = n
+        self.batch_query_filters = [eval(convert_conditions_to_filters(expr)) for expr in exprs] if exprs is not None else None
+
+    def run_prepared_batch_query(self) -> None:
+        """
+        Run prepared batch query
+        """
+        start_time = time.time()
+        if self.batch_query_filters is None:
+            self.batch_query(self.batch_query_vectors, self.query_topk)
+        else:
+            self.batch_query(self.batch_query_vectors, self.query_topk, self.batch_query_filters)
+        self.batch_latencies.extend([(time.time() - start_time) / len(self.batch_query_vectors)] * len(self.batch_query_vectors))
+        self.batch_results = super().get_batch_results()
+
+    def get_batch_results(self) -> list[list[int]]:
+        """
+        Get batch results
+
+        Returns:
+            list[list[int]]: An array of indices representing the nearest neighbors.
+        """
+        return self.batch_results
+
+    def get_batch_latencies(self) -> list[float]:
+        """
+        Get batch latencies
+
+        Returns:
+            list[float]: An array of latencies for each query.
+        """
+        return self.batch_latencies
 
     def done(self):
         self.client.close()

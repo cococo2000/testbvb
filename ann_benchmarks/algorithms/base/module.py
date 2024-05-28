@@ -49,7 +49,7 @@ class BaseANN(object):
             self,
             v : np.ndarray,
             n : int,
-            expr : str | None = None
+            filter_expr = None
             ) -> list[int]:
         """
         Performs a query on the algorithm to find the nearest neighbors
@@ -57,8 +57,8 @@ class BaseANN(object):
         Args:
             v (np.array): The vector to find the nearest neighbors of.
             n (int): The number of nearest neighbors to return.
-            expr (str): The search expression
-        
+            filter_expr (str): The search expression
+
         Returns:
             list[int]: An array of indices representing the nearest neighbors.
         """
@@ -66,9 +66,9 @@ class BaseANN(object):
 
     def batch_query(
             self,
-            X: np.ndarray,
+            vectors: np.ndarray,
             n: int,
-            exprs: list[str] | None = None
+            exprs: list | None = None
             ) -> None:
         """
         Performs multiple queries at once and lets the algorithm figure out how to handle it.
@@ -76,18 +76,18 @@ class BaseANN(object):
         The default implementation uses a ThreadPool to parallelize query processing.
 
         Args:
-            X (np.array): An array of vectors to find the nearest neighbors of.
+            vectors (np.array): An array of vectors to find the nearest neighbors of.
             n (int): The number of nearest neighbors to return for each query.
             exprs (list[str]): The search expressions for each query.
 
-        Returns: 
+        Returns:
             None: self.get_batch_results() is responsible for retrieving batch result
         """
         pool = ThreadPool()
         if exprs is None:
-            self.res = pool.map(lambda q: self.query(q, n), X)
+            self.res = pool.map(lambda q: self.query(q, n), vectors)
         else:
-            self.res = pool.starmap(lambda q, e: self.query(q, n, e), zip(X, exprs))
+            self.res = pool.starmap(lambda q, e: self.query(q, n, e), zip(vectors, exprs))
 
     def get_batch_results(self) -> np.array:
         """

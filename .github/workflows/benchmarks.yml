@@ -29,6 +29,8 @@ jobs:
       matrix:
         dataset: [random-xs-20-angular]
         library:
+          - bruteforce
+          - dummy-algo
           - milvus
           - qdrant
           - weaviate
