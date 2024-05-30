@@ -575,6 +575,9 @@ def gpt4vision(out_fn: str) -> None:
 def librispeech_asr(out_fn: str) -> None:
     pass
 
+def img_wikipedia(out_fn: str) -> None:
+    pass
+
 DATASETS: Dict[str, Callable[[str], None]] = {
     "deep-image-96-angular": deep_image,
     "fashion-mnist-784-euclidean": fashion_mnist,
@@ -609,7 +612,9 @@ DATASETS: Dict[str, Callable[[str], None]] = {
     "librispeech_asr-euclidean-mm": librispeech_asr,
     "app_reviews_euclidean": app_reviews,
     "cc_news_euclidean": cc_news,
-    "ag_news_euclidean": ag_news
+    "ag_news_euclidean": ag_news,
+    "img-wikipedia-mm": img_wikipedia,
+    "img-wikipedia-mm-ocr": img_wikipedia,
 }
 
 DATASETS.update({
