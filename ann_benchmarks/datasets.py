@@ -3,9 +3,9 @@ import random
 import tarfile
 from urllib.request import urlopen, urlretrieve
 
+from typing import Any, Callable, Dict, Tuple
 import h5py
 import numpy
-from typing import Any, Callable, Dict, Tuple
 
 def download(source_url: str, destination_path: str) -> None:
     """
@@ -126,8 +126,6 @@ def write_output(train: numpy.ndarray, test: numpy.ndarray, fn: str, distance: s
 """
 param: train and test are arrays of arrays of indices.
 """
-
-
 def write_sparse_output(train: numpy.ndarray, test: numpy.ndarray, fn: str, distance: str, dimension: int, count: int = 100) -> None:
     """
     Writes the provided sparse training and testing data to an HDF5 file. It also computes 
