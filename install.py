@@ -37,9 +37,8 @@ if __name__ == "__main__":
 
     print("Building base image...")
     subprocess.check_call(
-         "docker build \
-         --rm -t ann-benchmarks -f ann_benchmarks/algorithms/base/Dockerfile .",
-         shell=True,
+        "docker build --rm -t ann-benchmarks -f ann_benchmarks/algorithms/base/Dockerfile .",
+        shell=True,
      )
     print("Building base image done.")
 
@@ -48,7 +47,7 @@ if __name__ == "__main__":
     elif os.getenv("LIBRARY"):
         tags = [os.getenv("LIBRARY")]
     else:
-        tags = [fn for fn in os.listdir("ann_benchmarks/algorithms") if fn not in ["__init__.py", "__pycache__"]]
+        tags = [fn for fn in os.listdir("ann_benchmarks/algorithms") if fn not in ["__init__.py", "__pycache__", "base"]]
     print(f"Building algorithms: {tags}...")
 
     print(f"Building algorithm images with {args.proc} processes")
