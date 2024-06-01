@@ -41,8 +41,8 @@ def positive_int(input_str: str) -> int:
         i = int(input_str)
         if i < 1:
             raise ValueError
-    except ValueError:
-        raise argparse.ArgumentTypeError(f"{input_str} is not a positive integer")
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(f"{input_str} is not a positive integer") from exc
 
     return i
 
@@ -71,7 +71,8 @@ def run_worker(cpu: int, args: argparse.Namespace, queue: multiprocessing.Queue)
             memory_margin = 500e6  # reserve some extra memory for misc stuff
             mem_limit = int((psutil.virtual_memory().available - memory_margin) / args.parallelism)
             cpu_limit = str(cpu) if not args.batch else f"0-{multiprocessing.cpu_count() - 1}"
-            
+            logger.info("cpu limit: %s, mem limit: %s", cpu_limit, mem_limit)
+
             run_docker(definition, args.dataset, args.count, args.runs, args.timeout, args.batch, cpu_limit, mem_limit)
 
 
@@ -172,10 +173,10 @@ def parse_arguments() -> argparse.Namespace:
 
 
 def filter_already_run_definitions(
-    definitions: List[Definition], 
-    dataset: str, 
-    count: int, 
-    batch: bool, 
+    definitions: List[Definition],
+    dataset: str,
+    count: int,
+    batch: bool,
     force: bool
 ) -> List[Definition]:
     """Filters out the algorithm definitions based on whether they have already been run or not.
@@ -282,10 +283,10 @@ def create_workers_and_execute(definitions: List[Definition], args: argparse.Nam
     """
     cpu_count = multiprocessing.cpu_count()
     if args.parallelism > cpu_count - 1:
-        raise Exception(f"Parallelism larger than {cpu_count - 1}! (CPU count minus one)")
+        raise ValueError(f"Parallelism larger than {cpu_count - 1}! (CPU count minus one)")
 
     if args.batch and args.parallelism > 1:
-        raise Exception(
+        raise ValueError(
             f"Batch mode uses all available CPU resources, --parallelism should be set to 1. (Was: {args.parallelism})"
         )
 
@@ -298,7 +299,7 @@ def create_workers_and_execute(definitions: List[Definition], args: argparse.Nam
         [worker.start() for worker in workers]
         [worker.join() for worker in workers]
     finally:
-        logger.info("Terminating %d workers" % len(workers))
+        logger.info("Terminating %d workers", len(workers))
         [worker.terminate() for worker in workers]
 
 
@@ -316,7 +317,7 @@ def filter_disabled_algorithms(definitions: List[Definition]) -> List[Definition
     """
     disabled_algorithms = [d for d in definitions if d.disabled]
     if disabled_algorithms:
-        logger.info(f"Not running disabled algorithms {disabled_algorithms}")
+        logger.info("Not running disabled algorithms %s", disabled_algorithms)
 
     return [d for d in definitions if not d.disabled]
 
@@ -339,6 +340,9 @@ def limit_algorithms(definitions: List[Definition], limit: int) -> List[Definiti
 
 
 def main():
+    """
+    Main function that orchestrates the execution of the benchmarking process.
+    """
     args = parse_arguments()
 
     if args.list_algorithms:
@@ -367,7 +371,7 @@ def main():
     )
 
     if args.algorithm:
-        logger.info(f"running only {args.algorithm}")
+        logger.info("running only %s", args.algorithm)
         definitions = [d for d in definitions if d.algorithm == args.algorithm]
 
     if not args.local:
@@ -381,8 +385,8 @@ def main():
     definitions = limit_algorithms(definitions, args.max_n_algorithms)
 
     if len(definitions) == 0:
-        raise Exception("Nothing to run")
+        raise ValueError("Nothing to run")
     else:
-        logger.info(f"Order: {definitions}")
+        logger.info("Order: %s", definitions)
 
     create_workers_and_execute(definitions, args)
