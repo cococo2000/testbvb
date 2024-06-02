@@ -21,7 +21,7 @@ from .runner import run, run_docker
 
 
 logging.config.fileConfig("logging.conf")
-logger = logging.getLogger("annb")
+logger = logging.getLogger("bvb")
 
 
 def positive_int(input_str: str) -> int:
@@ -47,7 +47,44 @@ def positive_int(input_str: str) -> int:
     return i
 
 
-def run_worker(cpu: int, args: argparse.Namespace, queue: multiprocessing.Queue) -> None:
+def memory_type(value):
+    """
+    Validates if the input string can be converted to a memory size.
+
+    Args:
+        value (str): The input string to validate and convert to a memory size.
+
+    Returns:
+        int or str: The validated memory size.
+    """
+    try:
+        return int(value)
+    except ValueError:
+        return value
+
+
+def parse_cpu_set(cpu_set_string):
+    """
+    Parses the CPU set string and returns a sorted set of CPU numbers.
+
+    Args:
+        cpu_set_string (str): The string containing the CPU numbers.
+
+    Returns:
+        set: A sorted set of CPU numbers.
+    """
+    cpu_set = set()
+    parts = cpu_set_string.split(",")
+    for part in parts:
+        if "-" in part:
+            start, end = part.split("-")
+            cpu_set.update(range(int(start), int(end) + 1))
+        else:
+            cpu_set.add(int(part))
+    return sorted(cpu_set)
+
+
+def run_worker(cpuset_cpus : str, args: argparse.Namespace, queue: multiprocessing.Queue) -> None:
     """
     Executes the algorithm based on the provided parameters.
 
@@ -56,7 +93,8 @@ def run_worker(cpu: int, args: argparse.Namespace, queue: multiprocessing.Queue)
     executes the algorithm in a Docker container.
 
     Args:
-        cpu (int): The CPU number to be used in the execution.
+        # cpu (int): The CPU number to be used in the execution.
+        cpuset_cpus (str): The CPUs in which to allow the docker container to run.
         args (argparse.Namespace): User provided arguments for running workers. 
         queue (multiprocessing.Queue): The multiprocessing queue that contains the algorithm definitions.
 
@@ -68,12 +106,11 @@ def run_worker(cpu: int, args: argparse.Namespace, queue: multiprocessing.Queue)
         if args.local:
             run(definition, args.dataset, args.count, args.runs, args.batch)
         else:
-            memory_margin = 500e6  # reserve some extra memory for misc stuff
-            mem_limit = int((psutil.virtual_memory().available - memory_margin) / args.parallelism)
-            cpu_limit = str(cpu) if not args.batch else f"0-{multiprocessing.cpu_count() - 1}"
-            logger.info("cpu limit: %s, mem limit: %s", cpu_limit, mem_limit)
+            mem_limit = args.memory
 
-            run_docker(definition, args.dataset, args.count, args.runs, args.timeout, args.batch, cpu_limit, mem_limit)
+            run_docker(
+                definition, args.dataset, args.count, args.runs, args.timeout, args.batch, cpuset_cpus, mem_limit
+            )
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -166,6 +203,18 @@ def parse_arguments() -> argparse.Namespace:
         help="Number of Docker containers in parallel",
         default=1
     )
+    parser.add_argument(
+        "--cpuset-cpus",
+        metavar="CPUSET",
+        help="The CPUs in which to allow the container to run(e.g., 0-2, 0,1) (only used in Docker mode)",
+        default="0"
+    )
+    parser.add_argument(
+        "--memory",
+        type=memory_type,
+        help="Memory limit for Docker containers",
+        default="64g"
+    )
     args = parser.parse_args()
     if args.timeout == -1:
         args.timeout = None
@@ -210,7 +259,7 @@ def filter_already_run_definitions(
         if not_yet_run:
             definition = replace(definition, query_argument_groups=not_yet_run) if definition.query_argument_groups else definition
             filtered_definitions.append(definition)
-            
+
     return filtered_definitions
 
 
@@ -233,10 +282,10 @@ def filter_by_available_docker_images(definitions: List[Definition]) -> List[Def
 
     missing_docker_images = set(d.docker_tag for d in definitions).difference(docker_tags)
     if missing_docker_images:
-        logger.info(f"not all docker images available, only: {docker_tags}")
-        logger.info(f"missing docker images: {missing_docker_images}")
+        logger.info("not all docker images available, only: %s", docker_tags)
+        logger.info("missing docker images: %s", missing_docker_images)
         definitions = [d for d in definitions if d.docker_tag in docker_tags]
-    
+
     return definitions
 
 
@@ -258,15 +307,15 @@ def check_module_import_and_constructor(df: Definition) -> bool:
     """
     status = algorithm_status(df)
     if status == InstantiationStatus.NO_CONSTRUCTOR:
-        raise Exception(
+        raise ImportError(
             f"{df.module}.{df.constructor}({df.arguments}): error: the module '{df.module}' does not expose the named constructor"
         )
     if status == InstantiationStatus.NO_MODULE:
         logging.warning(
-            f"{df.module}.{df.constructor}({df.arguments}): the module '{df.module}' could not be loaded; skipping"
+            "%s.%s(%s): the module '%s' could not be loaded; skipping", df.module, df.constructor, df.arguments, df.module
         )
         return False
-    
+
     return True
 
 def create_workers_and_execute(definitions: List[Definition], args: argparse.Namespace):
@@ -281,8 +330,12 @@ def create_workers_and_execute(definitions: List[Definition], args: argparse.Nam
         Exception: If the level of parallelism exceeds the available CPU count or if batch mode is on with more than 
                    one worker.
     """
-    cpu_count = multiprocessing.cpu_count()
-    if args.parallelism > cpu_count - 1:
+    cpu_set = parse_cpu_set(args.cpuset_cpus)
+    cpu_count = len(cpu_set)
+    if cpu_set[-1] >= multiprocessing.cpu_count():
+        raise ValueError(f"CPU number {cpu_set[-1]} is larger than the number of CPUs available ({multiprocessing.cpu_count()})")
+
+    if args.parallelism > cpu_count:
         raise ValueError(f"Parallelism larger than {cpu_count - 1}! (CPU count minus one)")
 
     if args.batch and args.parallelism > 1:
@@ -290,12 +343,18 @@ def create_workers_and_execute(definitions: List[Definition], args: argparse.Nam
             f"Batch mode uses all available CPU resources, --parallelism should be set to 1. (Was: {args.parallelism})"
         )
 
+    if cpu_count % args.parallelism != 0:
+        raise ValueError(f"Number of CPUs ({cpu_count}) must be divisible by parallelism ({args.parallelism})")
+    else:
+        cpu_sets = [cpu_set[i * (cpu_count // args.parallelism):(i + 1) * (cpu_count // args.parallelism)] for i in range(args.parallelism)]
+        cpu_sets = [",".join(map(str, cpu_set)) for cpu_set in cpu_sets]
+
     task_queue = multiprocessing.Queue()
     for definition in definitions:
         task_queue.put(definition)
 
     try:
-        workers = [multiprocessing.Process(target=run_worker, args=(i + 1, args, task_queue)) for i in range(args.parallelism)]
+        workers = [multiprocessing.Process(target=run_worker, args=(cpu_sets[i], args, task_queue)) for i in range(args.parallelism)]
         [worker.start() for worker in workers]
         [worker.join() for worker in workers]
     finally:

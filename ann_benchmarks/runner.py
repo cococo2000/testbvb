@@ -453,14 +453,18 @@ def run_docker(
     runs: int,
     timeout: int,
     batch: bool,
-    cpu_limit: str,
-    mem_limit: Optional[int] = None
+    cpuset_cpus: str,
+    mem_limit: Optional[int | str] = None,
 ) -> None:
     """
     Runs `run_from_cmdline` within a Docker container with specified parameters
     and logs the output.
 
     See `run_from_cmdline` for details on the args.
+
+    Args:
+        cpuset_cpus (str): The CPUs in which to run the container.
+        mem_limit (Optional[int | str]): The memory limit for the container.
     """
     cmd = [
         "--dataset",
@@ -495,18 +499,18 @@ def run_docker(
             os.path.abspath("data"): {"bind": "/home/app/data", "mode": "ro"},
             os.path.abspath("results"): {"bind": "/home/app/results", "mode": "rw"},
         },
-        cpuset_cpus=cpu_limit,
+        cpuset_cpus=cpuset_cpus,
         mem_limit=mem_limit,
         detach=True,
         privileged=True,
-        runtime="nvidia"
+        runtime="nvidia",
     )
-    logger = logging.getLogger(f"annb.{container.short_id}")
+    logger = logging.getLogger(f"bvb.{container.short_id}")
 
     logger.info(
-        "Created container %s: CPU limit %s, mem limit %s, timeout %s, command %s",
+        "Created container %s: cpuset cpus %s, mem limit %s, timeout %s, command %s",
         container.short_id,
-        cpu_limit,
+        cpuset_cpus,
         mem_limit,
         timeout,
         cmd,
@@ -522,7 +526,7 @@ def run_docker(
     try:
         return_value = container.wait(timeout=timeout)
         _handle_container_return_value(return_value, container, logger)
-    except Exception as e:
+    except docker.errors.APIError as e:
         logger.error("Container.wait for container %s failed with exception", container.short_id)
         logger.error(str(e))
     finally:
