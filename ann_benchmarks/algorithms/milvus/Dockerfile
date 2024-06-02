@@ -1,5 +1,6 @@
 FROM ann-benchmarks
 
+# Install Milvus Python SDK
 RUN pip3 install pymilvus==2.4.1
 RUN python3 -c "from pymilvus import Collection"
 

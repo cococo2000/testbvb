@@ -499,6 +499,7 @@ def run_docker(
         mem_limit=mem_limit,
         detach=True,
         privileged=True,
+        runtime="nvidia"
     )
     logger = logging.getLogger(f"annb.{container.short_id}")
 
