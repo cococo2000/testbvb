@@ -237,7 +237,7 @@ def parse_arguments() -> argparse.Namespace:
         "--memory",
         type=memory_type,
         help="Memory limit for Docker containers",
-        default="64g"
+        default="4g"
     )
     args = parser.parse_args()
     if args.timeout == -1:
