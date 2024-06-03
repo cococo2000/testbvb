@@ -1,15 +1,15 @@
-import collections
+""" Definitions for algorithms and their arguments. """
 from dataclasses import dataclass
 import importlib
 import os
 import glob
 from enum import Enum
 from itertools import product
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Union
+import yaml
 
 from ann_benchmarks.algorithms.base.module import BaseANN
 
-import yaml
 
 @dataclass
 class Definition:
@@ -135,7 +135,7 @@ def load_configs(point_type: str, base_dir: str = "ann_benchmarks/algorithms") -
     config_files = get_config_files(base_dir=base_dir)
     configs = {}
     for config_file in config_files:
-        with open(config_file, 'r') as stream:
+        with open(config_file, 'r', encoding='utf-8') as stream:
             try:
                 config_data = yaml.safe_load(stream)
                 algorithm_name = os.path.basename(os.path.dirname(config_file))
@@ -150,7 +150,7 @@ def _get_definitions(base_dir: str = "ann_benchmarks/algorithms") -> Dict[str, D
     config_files = get_config_files(base_dir=base_dir)
     configs = {}
     for config_file in config_files:
-        with open(config_file, 'r') as stream:
+        with open(config_file, 'r', encoding='utf-8') as stream:
             try:
                 config_data = yaml.safe_load(stream)
                 algorithm_name = os.path.basename(os.path.dirname(config_file))
@@ -327,7 +327,7 @@ def create_definitions_from_algorithm(name: str, algo: Dict[str, Any], dimension
 
             vs = {"@count": count, "@metric": distance_metric, "@dimension": dimension}
             current_args = [_substitute_variables(arg, vs) for arg in current_args]
-            
+
             definitions.append(
                 Definition(
                     algorithm=name,

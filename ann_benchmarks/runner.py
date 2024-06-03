@@ -1,3 +1,4 @@
+""" Runner module for running the benchmarking. """
 import argparse
 import json
 import logging
@@ -22,7 +23,7 @@ from .results import store_results
 def run_individual_query(
         algo: BaseANN,
         X_train: np.array,
-        X_test: np.array, 
+        X_test: np.array,
         distance: str,
         count: int,
         run_count: int,
@@ -318,10 +319,10 @@ def run(
     elif dataset_type == "mv-ann":
         raise NotImplementedError("Multi-vector ann datasets are not supported yet.")
     elif dataset_type == "mm-ann":
-        X_train, X_test = data
+        X_train, X_test = data[0], data[1]
     else:
         # dataset_type == "ann"
-        X_train, X_test = data
+        X_train, X_test = data[0], data[1]
 
     if hasattr(algo, "supports_prepared_queries"):
         algo.supports_prepared_queries()
@@ -503,7 +504,7 @@ def run_docker(
         mem_limit=mem_limit,
         detach=True,
         privileged=True,
-        runtime="nvidia",
+        runtime="nvidia" if os.path.exists("/usr/bin/nvidia-smi") else None,
     )
     logger = logging.getLogger(f"bvb.{container.short_id}")
 

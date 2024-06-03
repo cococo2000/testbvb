@@ -1,3 +1,4 @@
+""" This module provides functions for storing and loading results from HDF5 files. """
 import json
 import os
 import re
@@ -94,7 +95,7 @@ def load_all_results(dataset: Optional[str] = None,
                     if batch_mode != properties["batch_mode"]:
                         continue
                     yield properties, f
-            except Exception:
+            except OSError:
                 print(f"Was unable to read {filename}")
                 traceback.print_exc()
 

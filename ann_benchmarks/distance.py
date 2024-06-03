@@ -1,3 +1,4 @@
+""" This module contains utility functions for computing distances between data points. """
 from typing import Callable, List, NamedTuple, Tuple, Union
 
 import h5py

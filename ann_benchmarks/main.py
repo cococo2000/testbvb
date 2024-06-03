@@ -1,3 +1,4 @@
+""" Main module for running the benchmarking process. """
 import argparse
 from dataclasses import replace
 import logging
@@ -63,6 +64,31 @@ def memory_type(value):
         return value
 
 
+def parse_mem_limit(mem_limit):
+    """
+    Parses the memory limit string and returns the memory limit in bytes.
+
+    Args:
+        mem_limit (str | int | float): The string containing the memory limit.
+
+    Returns:
+        int: The memory limit in bytes.
+    """
+    units = {"b": 1, "k": 1024, "m": 1024**2, "g": 1024**3}
+
+    if isinstance(mem_limit, (int, float)):
+        return int(mem_limit)
+
+    if isinstance(mem_limit, str):
+        mem_limit = mem_limit.strip().lower()
+        if mem_limit[-1] in units:
+            return int(float(mem_limit[:-1]) * units[mem_limit[-1]])
+        else:
+            return int(float(mem_limit))  # Assume bytes if no unit specified
+
+    raise ValueError(f"Invalid memory limit format: {mem_limit}")
+
+
 def parse_cpu_set(cpu_set_string):
     """
     Parses the CPU set string and returns a sorted set of CPU numbers.
@@ -106,10 +132,8 @@ def run_worker(cpuset_cpus : str, args: argparse.Namespace, queue: multiprocessi
         if args.local:
             run(definition, args.dataset, args.count, args.runs, args.batch)
         else:
-            mem_limit = args.memory
-
             run_docker(
-                definition, args.dataset, args.count, args.runs, args.timeout, args.batch, cpuset_cpus, mem_limit
+                definition, args.dataset, args.count, args.runs, args.timeout, args.batch, cpuset_cpus, args.memory
             )
 
 
@@ -251,7 +275,7 @@ def filter_already_run_definitions(
 
     for definition in definitions:
         not_yet_run = [
-            query_args 
+            query_args
             for query_args in (definition.query_argument_groups or [[]])
             if force or not os.path.exists(build_result_filepath(dataset, count, definition, query_args, batch))
         ]
@@ -349,17 +373,25 @@ def create_workers_and_execute(definitions: List[Definition], args: argparse.Nam
         cpu_sets = [cpu_set[i * (cpu_count // args.parallelism):(i + 1) * (cpu_count // args.parallelism)] for i in range(args.parallelism)]
         cpu_sets = [",".join(map(str, cpu_set)) for cpu_set in cpu_sets]
 
+    memory_available = psutil.virtual_memory().available
+    memory_limit = parse_mem_limit(args.memory)
+    if args.parallelism * memory_limit > memory_available:
+        raise ValueError(f"Memory limit {args.memory} per container times parallelism {args.parallelism} exceeds available memory {memory_available}")
+
     task_queue = multiprocessing.Queue()
     for definition in definitions:
         task_queue.put(definition)
 
     try:
         workers = [multiprocessing.Process(target=run_worker, args=(cpu_sets[i], args, task_queue)) for i in range(args.parallelism)]
-        [worker.start() for worker in workers]
-        [worker.join() for worker in workers]
+        for worker in workers:
+            worker.start()
+        for worker in workers:
+            worker.join()
     finally:
         logger.info("Terminating %d workers", len(workers))
-        [worker.terminate() for worker in workers]
+        for worker in workers:
+            worker.terminate()
 
 
 def filter_disabled_algorithms(definitions: List[Definition]) -> List[Definition]:

@@ -1,3 +1,4 @@
+""" Dataset generation and loading functions. """
 import os
 import random
 import tarfile
@@ -383,7 +384,7 @@ def nytimes(out_fn: str, n_dimensions: int) -> None:
 def random_float(out_fn: str, n_dims: int, n_samples: int, centers: int, distance: str) -> None:
     import sklearn.datasets
 
-    X, _ = sklearn.datasets.make_blobs(n_samples=n_samples, n_features=n_dims, centers=centers, random_state=1)
+    X = sklearn.datasets.make_blobs(n_samples=n_samples, n_features=n_dims, centers=centers, random_state=1)[0]
     X_train, X_test = train_test_split(X, test_size=0.1)
     write_output(X_train, X_test, out_fn, distance)
 
@@ -391,7 +392,7 @@ def random_float(out_fn: str, n_dims: int, n_samples: int, centers: int, distanc
 def random_bitstring(out_fn: str, n_dims: int, n_samples: int, n_queries: int) -> None:
     import sklearn.datasets
 
-    Y, _ = sklearn.datasets.make_blobs(n_samples=n_samples, n_features=n_dims, centers=n_queries, random_state=1)
+    Y = sklearn.datasets.make_blobs(n_samples=n_samples, n_features=n_dims, centers=n_queries, random_state=1)[0]
     X = numpy.zeros((n_samples, n_dims), dtype=numpy.bool_)
     for i, vec in enumerate(Y):
         X[i] = numpy.array([v > 0 for v in vec], dtype=numpy.bool_)
@@ -447,7 +448,7 @@ def random_jaccard(out_fn: str, n: int = 10000, size: int = 50, universe: int = 
     random.seed(1)
     l = list(range(universe))
     X = []
-    for i in range(n):
+    for _ in range(n):
         X.append(random.sample(l, size))
 
     X_train, X_test = train_test_split(numpy.array(X), test_size=100, dimension=universe)
