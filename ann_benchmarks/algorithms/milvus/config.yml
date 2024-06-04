@@ -17,10 +17,30 @@ float:
       module: ann_benchmarks.algorithms.milvus
       name: milvus-ivfflat
       run_groups:
-        IVFFLAT:
-          args:
-            nlist: [128, 256, 512, 1024, 2048, 4096]
-          query_args: [[1, 10, 20, 50, 100]]
+        IVFFLAT_32:
+          arg_groups: [{ nlist: 32 }]
+          query_args: [[1, 4, 8, 16, 32]]
+        IVFFLAT_64:
+          arg_groups: [{ nlist: 64 }]
+          query_args: [[4, 16, 32, 48, 64]]
+        IVFFLAT_128:
+          arg_groups: [{ nlist: 128 }]
+          query_args: [[8, 32, 64, 96, 128]]
+        IVFFLAT_512:
+          arg_groups: [{ nlist: 512 }]
+          query_args: [[32, 128, 256, 384, 512]]
+        IVFFLAT_1024:
+          arg_groups: [{ nlist: 1024 }]
+          query_args: [[64, 256, 512, 768, 1024]]
+        IVFFLAT_2048:
+          arg_groups: [{ nlist: 2048 }]
+          query_args: [[128, 512, 1024, 1536, 2048]]
+        IVFFLAT_4096:
+          arg_groups: [{ nlist: 4096 }]
+          query_args: [[256, 1024, 2048, 3072, 4096]]
+        IVFFLAT_8192:
+          arg_groups: [{ nlist: 8192 }]
+          query_args: [[512, 2048, 4096, 6144, 8192]]
     - base_args: ["@metric", "@dimension"]
       constructor: MilvusIVFSQ8
       disabled: false
@@ -51,11 +71,33 @@ float:
       module: ann_benchmarks.algorithms.milvus
       name: milvus-hnsw
       run_groups:
-        HNSW:
-          args:
-            M: [4, 8, 12, 16, 24, 36, 48, 64, 96]
-            efConstruction: [200, 500]
-          query_args: [[100, 120, 150, 200, 400, 600, 800]]
+        M-12:
+          arg_groups: [{M: 12, efConstruction: 500}]
+          query_args: [[10, 20, 40, 80, 120, 200, 400, 600, 800]]
+        M-16:
+          arg_groups: [{M: 16, efConstruction: 500}]
+          query_args: [[10, 20, 40, 80, 120, 200, 400, 600, 800]]
+        M-24:
+          arg_groups: [{M: 24, efConstruction: 500}]
+          query_args: [[10, 20, 40, 80, 120, 200, 400, 600, 800]]
+        M-36:
+          arg_groups: [{M: 36, efConstruction: 500}]
+          query_args: [[10, 20, 40, 80, 120, 200, 400, 600, 800]]
+        M-4:
+          arg_groups: [{M: 4, efConstruction: 500}]
+          query_args: [[10, 20, 40, 80, 120, 200, 400, 600, 800]]
+        M-48:
+          arg_groups: [{M: 48, efConstruction: 500}]
+          query_args: [[10, 20, 40, 80, 120, 200, 400, 600, 800]]
+        M-64:
+          arg_groups: [{M: 64, efConstruction: 500}]
+          query_args: [[10, 20, 40, 80, 120, 200, 400, 600, 800]]
+        M-8:
+          arg_groups: [{M: 8, efConstruction: 500}]
+          query_args: [[10, 20, 40, 80, 120, 200, 400, 600, 800]]
+        M-96:
+          arg_groups: [{M: 96, efConstruction: 500}]
+          query_args: [[10, 20, 40, 80, 120, 200, 400, 600, 800]]
     - base_args: ["@metric", "@dimension"]
       constructor: MilvusSCANN
       disabled: false

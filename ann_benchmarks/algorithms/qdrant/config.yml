@@ -7,12 +7,57 @@ float:
     module: ann_benchmarks.algorithms.qdrant
     name: qdrant
     run_groups:
-      default:
-        args: [
-          [8, 16, 24, 32, 40, 48, 64, 72 ], #m
-          [64, 128, 256, 512 ], #ef_construct
-        ]
+      M-12:
+        arg_groups: [{M: 12, efConstruction: 500}]
         query_args: [
-          [8, 16, 32, 64, 128, 256, 512, 768], #hnsw_ef
+          [10, 20, 40, 80, 120, 200, 400, 600, 800], #hnsw_ef
+          [True, False], # re-score
+        ]
+      M-16:
+        arg_groups: [{M: 16, efConstruction: 500}]
+        query_args: [
+          [10, 20, 40, 80, 120, 200, 400, 600, 800], #hnsw_ef
+          [True, False], # re-score
+        ]
+      M-24:
+        arg_groups: [{M: 24, efConstruction: 500}]
+        query_args: [
+          [10, 20, 40, 80, 120, 200, 400, 600, 800], #hnsw_ef
+          [True, False], # re-score
+        ]
+      M-36:
+        arg_groups: [{M: 36, efConstruction: 500}]
+        query_args: [
+          [10, 20, 40, 80, 120, 200, 400, 600, 800], #hnsw_ef
+          [True, False], # re-score
+        ]
+      M-4:
+        arg_groups: [{M: 4, efConstruction: 500}]
+        query_args: [
+          [10, 20, 40, 80, 120, 200, 400, 600, 800], #hnsw_ef
+          [True, False], # re-score
+        ]
+      M-48:
+        arg_groups: [{M: 48, efConstruction: 500}]
+        query_args: [
+          [10, 20, 40, 80, 120, 200, 400, 600, 800], #hnsw_ef
+          [True, False], # re-score
+        ]
+      M-64:
+        arg_groups: [{M: 64, efConstruction: 500}]
+        query_args: [
+          [10, 20, 40, 80, 120, 200, 400, 600, 800], #hnsw_ef
+          [True, False], # re-score
+          ]
+      M-8:
+        arg_groups: [{M: 8, efConstruction: 500}]
+        query_args: [
+          [10, 20, 40, 80, 120, 200, 400, 600, 800], #hnsw_ef
+          [True, False], # re-score
+        ]
+      M-96:
+        arg_groups: [{M: 96, efConstruction: 500}]
+        query_args: [
+          [10, 20, 40, 80, 120, 200, 400, 600, 800], #hnsw_ef
           [True, False], # re-score
         ]

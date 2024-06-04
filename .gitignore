@@ -18,5 +18,4 @@ venv
 
 .idea
 
-test.sh
-plot.sh
+test*.sh

@@ -33,12 +33,16 @@ def metric_mapping(_metric: str):
 
 class Qdrant(BaseANN):
     """ Qdrant implementation """
-    def __init__(self, metric, m, ef_construct):
+    def __init__(
+            self,
+            metric : str,
+            index_param : dict
+        ):
         self._metric = metric
         self._metric_type = metric_mapping(metric)
         self._collection_name = "qdrant_test"
-        self._m = m
-        self._ef_construct = ef_construct
+        self._m = index_param.get("M", None)
+        self._ef_construct = index_param.get("efConstruction", None)
         self.docker_client = None
         self.docker_name = "qdrant"
         self.container = None
@@ -52,7 +56,7 @@ class Qdrant(BaseANN):
             print("[qdrant] collection already exists!!!")
             self.client.delete_collection(self._collection_name)
             print("[qdrant] collection deleted successfully!!!")
-        self.name = f"Qdrant metric:{metric} m:{m} ef_construct:{ef_construct}"
+        self.name = f"Qdrant metric:{self._metric} m:{self._m} ef_construct:{self._ef_construct}"
         self.search_params = None
         self.query_vector = None
         self.query_topk = 0
