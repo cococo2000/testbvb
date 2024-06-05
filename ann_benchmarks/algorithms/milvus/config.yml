@@ -71,33 +71,11 @@ float:
       module: ann_benchmarks.algorithms.milvus
       name: milvus-hnsw
       run_groups:
-        M-12:
-          arg_groups: [{M: 12, efConstruction: 500}]
-          query_args: [[10, 20, 40, 80, 120, 200, 400, 600, 800]]
-        M-16:
-          arg_groups: [{M: 16, efConstruction: 500}]
-          query_args: [[10, 20, 40, 80, 120, 200, 400, 600, 800]]
-        M-24:
-          arg_groups: [{M: 24, efConstruction: 500}]
-          query_args: [[10, 20, 40, 80, 120, 200, 400, 600, 800]]
-        M-36:
-          arg_groups: [{M: 36, efConstruction: 500}]
-          query_args: [[10, 20, 40, 80, 120, 200, 400, 600, 800]]
-        M-4:
-          arg_groups: [{M: 4, efConstruction: 500}]
-          query_args: [[10, 20, 40, 80, 120, 200, 400, 600, 800]]
-        M-48:
-          arg_groups: [{M: 48, efConstruction: 500}]
-          query_args: [[10, 20, 40, 80, 120, 200, 400, 600, 800]]
-        M-64:
-          arg_groups: [{M: 64, efConstruction: 500}]
-          query_args: [[10, 20, 40, 80, 120, 200, 400, 600, 800]]
-        M-8:
-          arg_groups: [{M: 8, efConstruction: 500}]
-          query_args: [[10, 20, 40, 80, 120, 200, 400, 600, 800]]
-        M-96:
-          arg_groups: [{M: 96, efConstruction: 500}]
-          query_args: [[10, 20, 40, 80, 120, 200, 400, 600, 800]]
+        HNSW:
+          args:
+            M: [4, 8, 12, 16, 24, 36, 48, 64, 96]
+            efConstruction: [200, 500]
+          query_args: [[100, 120, 150, 200, 500, 600, 800]]
     - base_args: ["@metric", "@dimension"]
       constructor: MilvusSCANN
       disabled: false
