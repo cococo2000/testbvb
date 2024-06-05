@@ -230,14 +230,14 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--cpuset-cpus",
         metavar="CPUSET",
-        help="The CPUs in which to allow the container to run(e.g., 0-2, 0,1) (only used in Docker mode)",
-        default="0"
+        help="The CPUs in which to allow the container to run(e.g., 0-2, 0,1) (only used in Docker mode), default is all CPUs",
+        default=None
     )
     parser.add_argument(
         "--memory",
         type=memory_type,
-        help="Memory limit for Docker containers",
-        default="4g"
+        help="Memory limit for Docker containers, default is all available memory",
+        default=None
     )
     args = parser.parse_args()
     if args.timeout == -1:
@@ -354,10 +354,11 @@ def create_workers_and_execute(definitions: List[Definition], args: argparse.Nam
         Exception: If the level of parallelism exceeds the available CPU count or if batch mode is on with more than 
                    one worker.
     """
-    cpu_set = parse_cpu_set(args.cpuset_cpus)
+    total_cpu_num = multiprocessing.cpu_count()
+    cpu_set = parse_cpu_set(args.cpuset_cpus) if args.cpuset_cpus else list(range(total_cpu_num))
     cpu_count = len(cpu_set)
-    if cpu_set[-1] >= multiprocessing.cpu_count():
-        raise ValueError(f"CPU number {cpu_set[-1]} is larger than the number of CPUs available ({multiprocessing.cpu_count()})")
+    if cpu_set[-1] >= total_cpu_num:
+        raise ValueError(f"CPU number {cpu_set[-1]} is larger than the number of CPUs available ({total_cpu_num})")
 
     if args.parallelism > cpu_count:
         raise ValueError(f"Parallelism larger than {cpu_count - 1}! (CPU count minus one)")
@@ -374,7 +375,7 @@ def create_workers_and_execute(definitions: List[Definition], args: argparse.Nam
         cpu_sets = [",".join(map(str, cpu_set)) for cpu_set in cpu_sets]
 
     memory_available = psutil.virtual_memory().available
-    memory_limit = parse_mem_limit(args.memory)
+    memory_limit = parse_mem_limit(args.memory) if args.memory else memory_available
     if args.parallelism * memory_limit > memory_available:
         raise ValueError(f"Memory limit {args.memory} per container times parallelism {args.parallelism} exceeds available memory {memory_available}")
 

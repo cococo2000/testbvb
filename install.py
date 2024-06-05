@@ -1,3 +1,4 @@
+""" This script builds the docker images for the algorithms in the ann_benchmarks/algorithms directory. """
 import argparse
 import os
 import subprocess
@@ -7,16 +8,17 @@ from multiprocessing import Pool
 from ann_benchmarks.main import positive_int
 
 
-def build(library, args):
-    print("Building %s..." % library)
-    if args is not None and len(args) != 0:
-        q = " ".join(["--build-arg " + x.replace(" ", "\\ ") for x in args])
+def build(library, build_args):
+    """ Build the docker image for the given library. """
+    print(f"Building {library}...")
+    if build_args is not None and len(build_args) != 0:
+        q = " ".join(["--build-arg " + x.replace(" ", "\\ ") for x in build_args])
     else:
         q = ""
 
     try:
         subprocess.check_call(
-            "docker build %s --rm -t ann-benchmarks-%s -f ann_benchmarks/algorithms/%s/Dockerfile  ." % (q, library, library),
+            f"docker build {q} --rm -t ann-benchmarks-{library} -f ann_benchmarks/algorithms/{library}/Dockerfile  .",
             shell=True,
         )
         return {library: "success"}
@@ -24,8 +26,9 @@ def build(library, args):
         return {library: "fail"}
 
 
-def build_multiprocess(args):
-    return build(*args)
+def build_multiprocess(build_args):
+    """ Wrapper for the build function to allow for multiprocessing. """
+    return build(*build_args)
 
 
 if __name__ == "__main__":

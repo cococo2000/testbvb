@@ -147,7 +147,8 @@ class Weaviate(BaseANN):
                     )
                 )
             self.collection.data.insert_many(data_objects)
-        print(f"[weaviate] load {len(embeddings)} data successfully!!!")
+        print(f"[weaviate] load {self.collection.aggregate.over_all()} data successfully!!!")
+        print(f"[weaviate] client.collections.list_all(simple=False): {self.client.collections.list_all(simple=False)}")
 
     def create_index(self) -> None:
         # Weaviate has already created the index before loading the data
@@ -264,8 +265,7 @@ class WeaviateFLAT(Weaviate):
             name=self.collection_name,
             properties=properties,
             vector_index_config=Configure.VectorIndex.flat(
-                distance_metric=self._metric_type,
-                quantizer=Configure.VectorIndex.Quantizer.bq()
+                distance_metric=self._metric_type
             ),
             inverted_index_config=Configure.inverted_index()
         )
@@ -297,8 +297,7 @@ class WeaviateHNSW(Weaviate):
             vector_index_config=Configure.VectorIndex.hnsw(
                 distance_metric=self._metric_type,
                 ef_construction=self.ef_construction,
-                max_connections=self.max_connections,
-                quantizer=Configure.VectorIndex.Quantizer.pq()
+                max_connections=self.max_connections
             ),
             inverted_index_config=Configure.inverted_index()
         )

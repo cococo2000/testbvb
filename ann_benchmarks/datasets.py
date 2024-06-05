@@ -544,7 +544,7 @@ def movielens10m(out_fn: str) -> None:
 def movielens20m(out_fn: str) -> None:
     movielens("ml-20m.zip", "ml-20m/ratings.csv", out_fn, ",", True)
 
-def dbpedia_entities_openai_1M(out_fn, n = None):
+def dbpedia_entities_openai_ada002_1M(out_fn, n=None):
     from sklearn.model_selection import train_test_split
     from datasets import load_dataset
 
@@ -576,6 +576,36 @@ def librispeech_asr(out_fn: str) -> None:
 
 def img_wikipedia(out_fn: str) -> None:
     pass
+
+def dbpedia_entities_openai3_text_embedding_3_large_3072_1M(out_fn, i, distance):
+    from sklearn.model_selection import train_test_split
+    from datasets import load_dataset
+
+    data = load_dataset("Qdrant/dbpedia-entities-openai3-text-embedding-3-large-3072-1M", split="train")
+    if i is not None and i >= 100_000:
+        data = data.select(range(i))
+
+    embeddings = data.to_pandas()["text-embedding-3-large-3072-embedding"].to_numpy()
+    embeddings = numpy.vstack(embeddings).reshape((-1, 3072))
+
+    X_train, X_test = train_test_split(embeddings, test_size=10_000, random_state=42)
+
+    write_output(X_train, X_test, out_fn, distance)
+
+def dbpedia_entities_openai3_text_embedding_3_large_1536_1M(out_fn, i, distance):
+    from sklearn.model_selection import train_test_split
+    from datasets import load_dataset
+
+    data = load_dataset("Qdrant/dbpedia-entities-openai3-text-embedding-3-large-1536-1M", split="train")
+    if i is not None and i >= 100_000:
+        data = data.select(range(i))
+
+    embeddings = data.to_pandas()["text-embedding-3-large-1536-embedding"].to_numpy()
+    embeddings = numpy.vstack(embeddings).reshape((-1, 1536))
+
+    X_train, X_test = train_test_split(embeddings, test_size=10_000, random_state=42)
+
+    write_output(X_train, X_test, out_fn, distance)
 
 DATASETS: Dict[str, Callable[[str], None]] = {
     "deep-image-96-angular": deep_image,
@@ -617,7 +647,23 @@ DATASETS: Dict[str, Callable[[str], None]] = {
     "img-wikipedia-1024-euclidean-mm-ocr": img_wikipedia,
 }
 
-DATASETS.update({
-    f"dbpedia-openai-{n//1000}k-angular": lambda out_fn, i=n: dbpedia_entities_openai_1M(out_fn, i)
-    for n in range(100_000, 1_100_000, 100_000)
-})
+DATASETS.update(
+    {
+        f"dbpedia-openai-ada002-{n//1000}k-angular": lambda out_fn, i=n: dbpedia_entities_openai_ada002_1M(out_fn, i)
+        for n in range(100_000, 1_100_000, 100_000)
+    }
+)
+DATASETS.update(
+    {
+        f"dbpedia-entities-openai3-text-embedding-3-large-3072-{n//1000}k-{distance}": lambda out_fn, i=n, d=distance: dbpedia_entities_openai3_text_embedding_3_large_3072_1M(
+            out_fn, i, d
+        ) for n in range(100_000, 1_100_000, 100_000) for distance in ["angular", "euclidean"]
+    },
+)
+DATASETS.update(
+    {
+        f"dbpedia-entities-openai3-text-embedding-3-large-1536-{n//1000}k-{distance}": lambda out_fn, i=n, d=distance: dbpedia_entities_openai3_text_embedding_3_large_1536_1M(
+            out_fn, i, d
+        ) for n in range(100_000, 1_100_000, 100_000) for distance in ["angular", "euclidean"]
+    }
+)

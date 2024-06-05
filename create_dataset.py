@@ -1,3 +1,4 @@
+""" Create a dataset from the given dataset name. """
 import argparse
 
 from ann_benchmarks.datasets import DATASETS, get_dataset_fn

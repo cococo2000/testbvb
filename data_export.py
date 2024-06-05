@@ -1,3 +1,4 @@
+""" Export the results of the experiments to a CSV file. """
 import argparse
 import csv
 
@@ -23,7 +24,7 @@ if __name__ == "__main__":
                 res["dataset"] = dataset_name
                 dfs.append(res)
     if len(dfs) > 0:
-        with open(args.output, "w", newline="") as csvfile:
+        with open(args.output, "w", newline="", encoding="utf-8") as csvfile:
             names = list(dfs[0].keys())
             writer = csv.DictWriter(csvfile, fieldnames=names)
             writer.writeheader()
