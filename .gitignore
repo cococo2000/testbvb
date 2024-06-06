@@ -18,4 +18,5 @@ venv
 
 .idea
 
-test*.sh
+test*
+logs/*
