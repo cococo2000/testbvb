@@ -577,6 +577,9 @@ def librispeech_asr(out_fn: str) -> None:
 def img_wikipedia(out_fn: str) -> None:
     pass
 
+def amazon(out_fn: str) -> None:
+    pass
+
 def dbpedia_entities_openai3_text_embedding_3_large_3072_1M(out_fn, i, distance):
     from sklearn.model_selection import train_test_split
     from datasets import load_dataset
@@ -645,6 +648,9 @@ DATASETS: Dict[str, Callable[[str], None]] = {
     "librispeech_asr-1024-euclidean-mm-asr": librispeech_asr,
     "img-wikipedia-1024-euclidean-mm": img_wikipedia,
     "img-wikipedia-1024-euclidean-mm-ocr": img_wikipedia,
+    "amazon-384-euclidean": amazon,
+    "amazon-384-euclidean-1filter": amazon,
+    "amazon-384-euclidean-5filter": amazon,
 }
 
 DATASETS.update(
