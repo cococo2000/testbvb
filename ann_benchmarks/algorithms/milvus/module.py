@@ -1,8 +1,18 @@
 """ Milvus CPU module with FLAT, IVFFLAT, IVFSQ8, IVFPQ, HNSW, SCANN index """
 import subprocess
-import numpy as np
 from time import time
-from pymilvus import DataType, connections, utility, Collection, CollectionSchema, FieldSchema
+import numpy as np
+from pymilvus import (
+    DataType,
+    connections,
+    utility,
+    Collection,
+    CollectionSchema,
+    FieldSchema,
+    AnnSearchRequest,
+    RRFRanker,
+    WeightedRanker
+)
 
 from ann_benchmarks.algorithms.base.module import BaseANN
 
@@ -26,7 +36,7 @@ def metric_mapping(_metric: str):
 
 class Milvus(BaseANN):
     """
-    Milvus CPU module
+    Milvus Base module
     """
     def __init__(
             self,
@@ -60,6 +70,7 @@ class Milvus(BaseANN):
         self.batch_query_exprs = None
         self.batch_results = []
         self.batch_latencies = []
+        self.reqs = []
 
     def start_milvus(self) -> None:
         """
@@ -86,7 +97,8 @@ class Milvus(BaseANN):
             self,
             num_labels : int = 0,
             label_names : list[str] | None = None,
-            label_types : list[str] | None = None
+            label_types : list[str] | None = None,
+            num_vectors : int = 1
             ) -> None:
         """
         Create collection with schema
@@ -100,12 +112,23 @@ class Milvus(BaseANN):
             dtype=DataType.INT64,
             is_primary=True
         )
-        filed_vec = FieldSchema(
-            name="vector",
-            dtype=DataType.FLOAT_VECTOR,
-            dim=self._dim
-        )
-        fields = [filed_id, filed_vec]
+        if num_vectors == 1:
+            filed_vec = FieldSchema(
+                name="vector",
+                dtype=DataType.FLOAT_VECTOR,
+                dim=self._dim
+            )
+            fields = [filed_id, filed_vec]
+        else:
+            fields = [filed_id]
+            for i in range(num_vectors):
+                fields.append(
+                    FieldSchema(
+                        name=f"vector{i}",
+                        dtype=DataType.FLOAT_VECTOR,
+                        dim=self._dim
+                    )
+                )
         self.num_labels = num_labels
         if num_labels > 0:
             label_type_to_dtype = {
@@ -158,6 +181,7 @@ class Milvus(BaseANN):
             embeddings (np.ndarray): embeddings
             labels (np.ndarray): labels
         """
+        num_vectors = embeddings.shape[1] if len(embeddings.shape) == 3 else 1
         if labels is not None:
             num_labels = len(labels[0])
             print(f"[Milvus] Insert {len(embeddings)} data with {num_labels} labels  into collection {self.collection_name}...")
@@ -167,8 +191,17 @@ class Milvus(BaseANN):
             batch_data = embeddings[i : min(i + self.load_batch_size, len(embeddings))]
             entities = [
                 [i for i in range(i, min(i + self.load_batch_size, len(embeddings)))],
-                batch_data.tolist()
+                # batch_data.tolist()
                 ]
+            if num_vectors == 1:
+                entities.append(
+                    batch_data.tolist()
+                )
+            else:
+                for j in range(num_vectors):
+                    entities.append(
+                        [v[j] for v in batch_data]
+                    )
             if labels is not None:
                 batch_labels = labels[i : min(i + self.load_batch_size, len(embeddings))]
                 for j in range(num_labels):
@@ -195,10 +228,11 @@ class Milvus(BaseANN):
             label_names (list[str]): label names
             label_types (list[str]): label types
         """
+        num_vectors = embeddings.shape[1] if len(embeddings.shape) == 3 else 1
         if labels is not None:
             self.create_collection(len(labels[0]), label_names, label_types)
         else:
-            self.create_collection()
+            self.create_collection(num_vectors = num_vectors)
         self.insert_data(embeddings, labels)
 
     def get_index_param(self) -> dict:
@@ -240,11 +274,39 @@ class Milvus(BaseANN):
         print(f"[Milvus] Create index {index.to_dict()} {index_progress} for collection {self.collection_name} successfully!!!")
         self.load_collection()
 
+    def create_multi_index(
+            self,
+            num_vectors: int
+            ) -> None:
+        """
+        Create multi index for collection
+        """
+        print(f"[Milvus] Create {num_vectors} index for collection {self.collection_name}...")
+        for i in range(num_vectors):
+            self.collection.create_index(
+                field_name = f"vector{i}",
+                index_params = self.get_index_param(),
+                index_name = f"vector{i}_index"
+            )
+        for i in range(num_vectors):
+            utility.wait_for_index_building_complete(
+                collection_name = self.collection_name,
+                index_name = f"vector{i}_index"
+            )
+            index = self.collection.index(index_name = f"vector{i}_index")
+            index_progress =  utility.index_building_progress(
+                collection_name = self.collection_name,
+                index_name = f"vector{i}_index"
+            )
+            print(f"[Milvus] Create index {index.to_dict()} {index_progress} for collection {self.collection_name} successfully!!!")
+        print(f"[Milvus] Create m{num_vectors} index for collection {self.collection_name} successfully!!!")
+        self.load_collection()
+
     def query(
             self,
             v : np.array,
             n : int,
-            expr : str | None = None
+            filter_expr : str | None = None
             ) -> list[int]:
         """
         Performs a query on the algorithm to find the nearest neighbors
@@ -261,7 +323,7 @@ class Milvus(BaseANN):
             data = [v],
             anns_field = "vector",
             param = self.search_params,
-            expr = expr,
+            expr = filter_expr,
             limit = n,
             output_fields=["id"]
         )
@@ -364,6 +426,46 @@ class Milvus(BaseANN):
         """
         return self.batch_latencies
 
+    def prepare_multi_vector_query(
+            self,
+            vectors: np.ndarray,
+            n: int
+    ):
+        """
+        Prepare multi vector query
+
+        Args:
+            vectors (np.array): An array of vectors to find the nearest neighbors of.
+            n (int): The number of nearest neighbors to return for each query.
+        """
+        self.query_topk = n
+
+        for i, v in enumerate(vectors):
+            self.reqs.append(
+                AnnSearchRequest(
+                    data=[v],
+                    anns_field=f"vector{i}",
+                    param=self.search_params,
+                    limit=n
+            ))
+        self.rerank = RRFRanker()
+
+    def run_multi_vector_query(self) -> list[int]:
+        """
+        Run multi vector query
+
+        Returns:
+            list[int]: An array of indices representing the nearest neighbors.
+        """
+        results = self.collection.hybrid_search(
+            reqs=self.reqs,
+            rerank=self.rerank,
+            limit=self.query_topk,
+            output_fields=["id"]
+        )
+        ids = [r.entity.get("id") for r in results[0]]
+        return ids
+
     def done(self) -> None:
         """
         Release resources
@@ -393,7 +495,7 @@ class MilvusFLAT(Milvus):
             self,
             v : np.ndarray,
             n : int,
-            expr : str | None = None
+            filter_expr : str | None = None
             ) -> list[int]:
         self.search_params = {
             "metric_type": self._metric_type,
@@ -402,7 +504,7 @@ class MilvusFLAT(Milvus):
             data = [v],
             anns_field = "vector",
             param = self.search_params,
-            expr = expr,
+            expr = filter_expr,
             limit = n,
             output_fields=["id"]
         )

@@ -48,7 +48,10 @@ def run_individual_query(
     Returns:
         tuple: A tuple with the attributes of the algorithm run and the results.
     """
+    num_vectors = X_train.shape[1] if len(X_train.shape) == 3 else 1
     prepared_queries = (batch and hasattr(algo, "prepare_batch_query")) or ((not batch) and hasattr(algo, "prepare_query"))
+
+    assert batch or num_vectors == 1, "Batch mode is only supported for single-vector queries"
 
     best_search_time = float("inf")
     if filter_expr_func is not None:
@@ -140,16 +143,52 @@ def run_individual_query(
             ]
             return [(latency, v) for latency, v in zip(batch_latencies, candidates)]
 
-        if filter_expr_func is None:
-            if batch:
-                results = batch_query(X_test)
+        def single_multi_vector_query(vs: np.ndarray):
+            """
+            Executes a single query on an instantiated, ANN algorithm for multi-vector data.
+
+            Args:
+                v (np.array): Multi-vector data to query.
+
+            Returns:
+                List[Tuple[float, List[Tuple[int, float]]]]: Tuple containing
+                    1. Total time taken for each query 
+                    2. Result pairs consisting of (point index, distance to candidate data)
+            """
+            algo.prepare_multi_vector_query(vs, count)
+            start = time.time()
+            candidates = algo.run_multi_vector_query()
+            total = time.time() - start
+            candidates = [
+                (int(idx), float(metrics[distance].distance(vs, X_train[idx])))
+                    for idx in candidates
+            ]
+            n_items_processed[0] += 1
+            if n_items_processed[0] % 1000 == 0:
+                print(f"Processed {n_items_processed[0]}/{len(X_test)} queries...")
+            if len(candidates) > count:
+                print(f"warning: algorithm {algo} returned {len(candidates)} results, \
+                      but count is only {count})")
+            return (total, candidates)
+
+
+        if num_vectors == 1:
+            if filter_expr_func is None:
+                if batch:
+                    results = batch_query(X_test)
+                else:
+                    results = [single_query(x) for x in X_test]
             else:
-                results = [single_query(x) for x in X_test]
+                if batch:
+                    results = batch_query(X_test, X_test_label)
+                else:
+                    results = [single_query(x, labels) for x, labels in zip(X_test, X_test_label)]
         else:
+            # multi-vector ann
             if batch:
-                results = batch_query(X_test, X_test_label)
+                raise NotImplementedError("Multi-vector ann datasets are not supported yet.")
             else:
-                results = [single_query(x, labels) for x, labels in zip(X_test, X_test_label)]
+                results = [single_multi_vector_query(x) for x in X_test]
 
         total_time = sum(time for time, _ in results)
         total_candidates = sum(len(candidates) for _, candidates in results)
@@ -213,7 +252,13 @@ def load_and_transform_dataset(dataset_name: str) -> Tuple:
         )
     elif dataset_type == "mv-ann":
         # multi-vector ann
-        raise NotImplementedError("Multi-vector ann datasets are not supported yet.")
+        X_train = np.array(D["train"])
+        X_test = np.array(D["test"])
+        dimension = X_train[0].shape[1]
+        print(f"Got a train set of size ({X_train.shape[0]} * {X_train.shape[1]} * {dimension})")
+        print(f"Got {len(X_test)} queries")
+        train, test = dataset_transform(D)
+        return dataset_type, distance, (train, test)
     elif dataset_type == "mm-ann":
         # multi-modal ann
         X_train = np.array(D["train"])
@@ -252,9 +297,13 @@ def insert_data(
     Returns:
         Tuple: The insert time and memory usage.
     """
+    num_vectors = X_train.shape[1] if len(X_train.shape) == 3 else 1
     t0 = time.time()
     memory_usage_before = algo.get_memory_usage()
-    algo.load_data(X_train, X_train_label, label_names, label_types)
+    if num_vectors == 1:
+        algo.load_data(X_train, X_train_label, label_names, label_types)
+    else:
+        algo.load_data(X_train, num_vectors = num_vectors)
     insert_time = time.time() - t0
     memory_usage_after = algo.get_memory_usage()
     data_size = memory_usage_after - memory_usage_before
@@ -271,7 +320,6 @@ def build_index(algo: BaseANN) -> Tuple:
 
     Args:
         algo (Any): The algorithm instance.
-        X_train (Any): The training data.
 
     Returns:
         Tuple: The build time and index size.
@@ -279,6 +327,32 @@ def build_index(algo: BaseANN) -> Tuple:
     t0 = time.time()
     memory_usage_before = algo.get_memory_usage()
     algo.create_index()
+    index_time = time.time() - t0
+    index_size = algo.get_memory_usage() - memory_usage_before
+
+    print("Built index in ", index_time)
+    print("Index size: ", index_size)
+
+    return index_time, index_size
+
+def build_multi_index(
+        algo: BaseANN,
+        num_vectors: int = 1
+    ) -> Tuple:
+    """
+    Builds the ANN index for a given ANN algorithm on the training data.
+
+    Args:
+        algo (Any): The algorithm instance.
+        num_vectors (int): The number of vectors.
+
+    Returns:
+        Tuple: The build time and index size.
+    """
+    assert hasattr(algo, "create_multi_index")
+    t0 = time.time()
+    memory_usage_before = algo.get_memory_usage()
+    algo.create_multi_index(num_vectors)
     index_time = time.time() - t0
     index_size = algo.get_memory_usage() - memory_usage_before
 
@@ -317,7 +391,7 @@ def run(
     if dataset_type == "filter-ann":
         X_train, X_train_label, X_test, X_test_label, label_names, label_types, filter_expr_func = data
     elif dataset_type == "mv-ann":
-        raise NotImplementedError("Multi-vector ann datasets are not supported yet.")
+        X_train, X_test = data[0], data[1]
     elif dataset_type == "mm-ann":
         X_train, X_test = data[0], data[1]
     else:
@@ -331,7 +405,7 @@ def run(
     if dataset_type == "filter-ann":
         insert_time, data_size = insert_data(algo, X_train, X_train_label, label_names, label_types)
     elif dataset_type == "mv-ann":
-        raise NotImplementedError("Multi-vector ann datasets are not supported yet.")
+        insert_time, data_size = insert_data(algo, X_train)
     elif dataset_type == "mm-ann":
         insert_time, data_size = insert_data(algo, X_train)
     else:
@@ -339,7 +413,11 @@ def run(
         insert_time, data_size = insert_data(algo, X_train)
 
     # Create or build index
-    index_time, index_size = build_index(algo)
+    num_vectors = X_train.shape[1] if len(X_train.shape) == 3 else 1
+    if dataset_type == "mv-ann":
+        index_time, index_size = build_multi_index(algo, num_vectors)
+    else:
+        index_time, index_size = build_index(algo)
 
     query_argument_groups = definition.query_argument_groups or [[]]  # Ensure at least one iteration
 
