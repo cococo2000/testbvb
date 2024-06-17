@@ -91,6 +91,10 @@ def run_individual_query(
                 start = time.time()
                 candidates = algo.query(v, count, expr)
                 total = time.time() - start
+
+            # make sure all returned indices are unique
+            assert len(candidates) == len(set(candidates)), "Implementation returned duplicated candidates"
+
             candidates = [
                 (int(idx), float(metrics[distance].distance(v, X_train[idx])))
                     for idx in candidates
@@ -136,6 +140,11 @@ def run_individual_query(
                 batch_latencies = algo.get_batch_latencies()
             else:
                 batch_latencies = [total / float(len(X))] * len(X)
+
+            # make sure all returned indices are unique
+            for res in results:
+                assert len(res) == len(set(res)), "Implementation returned duplicated candidates"
+
             candidates = [
                 [(int(idx), float(metrics[distance].distance(v, X_train[idx])))
                  for idx in single_results]  # noqa
@@ -170,7 +179,6 @@ def run_individual_query(
                 print(f"warning: algorithm {algo} returned {len(candidates)} results, \
                       but count is only {count})")
             return (total, candidates)
-
 
         if num_vectors == 1:
             if filter_expr_func is None:
