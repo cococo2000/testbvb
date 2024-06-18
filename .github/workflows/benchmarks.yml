@@ -1,10 +1,10 @@
 name: ANN benchmarks
 
 on:
-  # push:
-  #   branches:
-  #     - main
-  # pull_request:
+  push:
+    branches:
+      - main
+  pull_request:
   workflow_dispatch:
 
 # Cancel the workflow for the previous commit when the new commit is pushed.
@@ -16,7 +16,7 @@ jobs:
   unit-tests:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v3 # Pull the repository
+      - uses: actions/checkout@v4
       - run: sudo apt-get update && sudo apt-get install -y libhdf5-dev python3-numpy python3-scipy python3-matplotlib python3-sklearn
       - run: pip3 install --quiet -r requirements.txt
       - run: pytest
@@ -30,7 +30,7 @@ jobs:
         dataset: [random-xs-20-angular]
         library:
           - bruteforce
-          - dummy_algo
+          # - dummy_algo
           - milvus
           - qdrant
           - weaviate
@@ -42,7 +42,7 @@ jobs:
       DATASET: ${{ matrix.dataset }}
 
     steps:
-    - uses: actions/checkout@v3 # Pull the repository
+    - uses: actions/checkout@v4
 
     - name: Install OS Dependencies
       run: sudo apt-get update && sudo apt-get install -y libhdf5-dev python3-numpy python3-scipy python3-matplotlib python3-sklearn
