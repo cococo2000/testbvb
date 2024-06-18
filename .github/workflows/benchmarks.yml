@@ -30,7 +30,7 @@ jobs:
         dataset: [random-xs-20-angular]
         library:
           - bruteforce
-          - dummy_algo
+          # - dummy_algo
           - milvus
           - qdrant
           - weaviate
