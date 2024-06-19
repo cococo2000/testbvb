@@ -224,9 +224,9 @@ class Qdrant(BaseANN):
                 raise ValueError(f"[qdrant] Unsupported operator: {tokens[i]}")
         return must_filters, must_not_filters
 
-    def query(self, v, n, expr=None):
-        if expr is not None:
-            must_filters, must_not_filters = self.convert_expr_to_filter(expr)
+    def query(self, v, n, filter_expr=None):
+        if filter_expr is not None:
+            must_filters, must_not_filters = self.convert_expr_to_filter(filter_expr)
         else:
             must_filters = []
             must_not_filters = []
