@@ -299,7 +299,7 @@ class Milvus(BaseANN):
                 index_name = f"vector{i}_index"
             )
             print(f"[Milvus] Create index {index.to_dict()} {index_progress} for collection {self.collection_name} successfully!!!")
-        print(f"[Milvus] Create m{num_vectors} index for collection {self.collection_name} successfully!!!")
+        print(f"[Milvus] Create {num_vectors} index for collection {self.collection_name} successfully!!!")
         self.load_collection()
 
     def query(
@@ -439,7 +439,7 @@ class Milvus(BaseANN):
             n (int): The number of nearest neighbors to return for each query.
         """
         self.query_topk = n
-
+        self.reqs.clear()
         for i, v in enumerate(vectors):
             self.reqs.append(
                 AnnSearchRequest(
@@ -448,7 +448,8 @@ class Milvus(BaseANN):
                     param=self.search_params,
                     limit=n
             ))
-        self.rerank = RRFRanker()
+        # self.rerank = RRFRanker()
+        self.rerank = WeightedRanker(0.25, 0.25, 0.25, 0.25)
 
     def run_multi_vector_query(self) -> list[int]:
         """

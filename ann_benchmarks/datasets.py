@@ -68,9 +68,13 @@ def get_dataset(dataset_name: str) -> Tuple[h5py.File, int]:
         dimension = int(hdf5_file.attrs["dimension"])
     else:
         try:
-            dimension = len(hdf5_file["train"][0])
-        except KeyError:
-            dimension = len(hdf5_file["train_vec"][0])
+            if hdf5_file.attrs["type"] == "mv-ann":
+                dimension = len(hdf5_file["train"][0][0])
+            elif hdf5_file.attrs["type"] == "filter-ann":
+                dimension = len(hdf5_file["train_vec"][0])
+            else:
+                # "sparse", "dense", "ann" and "mm-ann"
+                dimension = len(hdf5_file["train"][0])
         except Exception as exc:
             raise ValueError("Could not determine dimension of dataset") from exc
     return hdf5_file, dimension
@@ -454,6 +458,37 @@ def random_jaccard(out_fn: str, n: int = 10000, size: int = 50, universe: int = 
     X_train, X_test = train_test_split(numpy.array(X), test_size=100, dimension=universe)
     write_sparse_output(X_train, X_test, out_fn, "jaccard", universe)
 
+def random_mv(out_fn: str) -> None:
+    print("preparing %s" % out_fn)
+    import numpy as np
+    from sklearn.model_selection import train_test_split
+    n = 10000
+    d = 100
+    X = np.random.rand(n, 4, d)
+    print(f"data size: {X.shape[0]} * {X.shape[1]} * {X.shape[2]}")
+    X_train, X_test = train_test_split(X, test_size=1000, random_state=42)
+    X_train = np.ascontiguousarray(X_train)
+    X_test = np.ascontiguousarray(X_test)
+    print(f"train size: {X_train.shape[0]} * {X_train.shape[1]} * {X_train.shape[2]}")
+    print(f"test size: {X_test.shape[0]} * {X_test.shape[1]} * {X_test.shape[2]}")
+    # (1000, 1, 4, 100) - (1, 9000, 4, 100) => (1000, 9000, 4, 100)
+    distance_matrix = np.mean(np.linalg.norm(X_test[:, np.newaxis] - X_train, axis=3), axis=2)
+    print(f"distance matrix size: {distance_matrix.shape[0]} * {distance_matrix.shape[1]}")
+    nearest_indices = np.argpartition(distance_matrix, 100, axis=1)[:, :100]
+    print(f"nearest indices size: {nearest_indices.shape[0]} * {nearest_indices.shape[1]}")
+    nearest_indices = nearest_indices[
+        np.arange(nearest_indices.shape[0])[:, None],
+        np.argsort(distance_matrix[np.arange(distance_matrix.shape[0])[:, None], nearest_indices], axis=1),
+    ]
+    nearest_distances = np.sort(distance_matrix, axis=1)[:, :100]
+    with h5py.File(out_fn, "w") as f:
+        f.attrs["type"] = "mv-ann"
+        f.attrs["distance"] = "euclidean"
+        f.create_dataset("train", data=X_train, dtype="float32")
+        f.create_dataset("test", data=X_test, dtype="float32")
+        f.create_dataset("neighbors", data=nearest_indices, dtype="int32")
+        f.create_dataset("distances", data=nearest_distances, dtype="float32")
+
 
 def lastfm(out_fn: str, n_dimensions: int, test_size: int = 50000) -> None:
     # This tests out ANN methods for retrieval on simple matrix factorization
@@ -651,6 +686,7 @@ DATASETS: Dict[str, Callable[[str], None]] = {
     "amazon-384-euclidean": amazon,
     "amazon-384-euclidean-1filter": amazon,
     "amazon-384-euclidean-5filter": amazon,
+    "random-mv": random_mv,
 }
 
 DATASETS.update(

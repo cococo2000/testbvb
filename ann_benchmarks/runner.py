@@ -51,7 +51,7 @@ def run_individual_query(
     num_vectors = X_train.shape[1] if len(X_train.shape) == 3 else 1
     prepared_queries = (batch and hasattr(algo, "prepare_batch_query")) or ((not batch) and hasattr(algo, "prepare_query"))
 
-    assert batch or num_vectors == 1, "Batch mode is only supported for single-vector queries"
+    assert not (batch and num_vectors > 1), "Batch mode is only supported for single-vector queries"
 
     best_search_time = float("inf")
     if filter_expr_func is not None:
@@ -305,13 +305,9 @@ def insert_data(
     Returns:
         Tuple: The insert time and memory usage.
     """
-    num_vectors = X_train.shape[1] if len(X_train.shape) == 3 else 1
     t0 = time.time()
     memory_usage_before = algo.get_memory_usage()
-    if num_vectors == 1:
-        algo.load_data(X_train, X_train_label, label_names, label_types)
-    else:
-        algo.load_data(X_train, num_vectors = num_vectors)
+    algo.load_data(X_train, X_train_label, label_names, label_types)
     insert_time = time.time() - t0
     memory_usage_after = algo.get_memory_usage()
     data_size = memory_usage_after - memory_usage_before
@@ -439,7 +435,7 @@ def run(
         elif dataset_type == "filter-ann":
             descriptor, results = run_individual_query(algo, X_train, X_test, distance, count, run_count, batch, X_test_label, filter_expr_func)
         elif dataset_type == "mv-ann":
-            raise NotImplementedError("Multi-vector ann datasets are not supported yet.")
+            descriptor, results = run_individual_query(algo, X_train, X_test, distance, count, run_count, batch)
         elif dataset_type == "mm-ann":
             descriptor, results = run_individual_query(algo, X_train, X_test, distance, count, run_count, batch)
         else:
