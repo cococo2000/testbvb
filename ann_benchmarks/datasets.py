@@ -68,9 +68,10 @@ def get_dataset(dataset_name: str) -> Tuple[h5py.File, int]:
         dimension = int(hdf5_file.attrs["dimension"])
     else:
         try:
-            if hdf5_file.attrs["type"] == "mv-ann":
+            dataset_type = hdf5_file.attrs.get("type", None)
+            if dataset_type == "mv-ann":
                 dimension = len(hdf5_file["train"][0][0])
-            elif hdf5_file.attrs["type"] == "filter-ann":
+            elif dataset_type == "filter-ann":
                 dimension = len(hdf5_file["train_vec"][0])
             else:
                 # "sparse", "dense", "ann" and "mm-ann"
