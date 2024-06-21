@@ -645,6 +645,9 @@ def dbpedia_entities_openai3_text_embedding_3_large_1536_1M(out_fn, i, distance)
 
     write_output(X_train, X_test, out_fn, distance)
 
+def webvid(out_fn: str) -> None:
+    pass
+
 DATASETS: Dict[str, Callable[[str], None]] = {
     "deep-image-96-angular": deep_image,
     "fashion-mnist-784-euclidean": fashion_mnist,
@@ -687,6 +690,7 @@ DATASETS: Dict[str, Callable[[str], None]] = {
     "amazon-384-euclidean-1filter": amazon,
     "amazon-384-euclidean-5filter": amazon,
     "random-mv": random_mv,
+    "webvid-4-512-euclidean": webvid,
 }
 
 DATASETS.update(
