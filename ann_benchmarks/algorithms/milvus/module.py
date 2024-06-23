@@ -464,8 +464,11 @@ class Milvus(BaseANN):
             limit=self.query_topk,
             output_fields=["id"]
         )
+        print(f"[Milvus] Multi vector query results: {results}")
         ids = [r.entity.get("id") for r in results[0]]
-        return ids
+        distances = [r.distance for r in results[0]]
+        print(f"[Milvus] Multi vector query results: {ids} {distances}")
+        return ids, distances
 
     def done(self) -> None:
         """

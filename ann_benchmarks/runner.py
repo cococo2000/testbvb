@@ -166,12 +166,14 @@ def run_individual_query(
             """
             algo.prepare_multi_vector_query(vs, count)
             start = time.time()
-            candidates = algo.run_multi_vector_query()
+            candidates, distances = algo.run_multi_vector_query()
             total = time.time() - start
-            candidates = [
-                (int(idx), float(metrics[distance].distance(vs, X_train[idx])))
-                    for idx in candidates
-            ]
+            # candidates = [
+            #     # (int(idx), float(metrics[distance].distance(vs, X_train[idx])))
+            #     (int(idx), float(np.sum([metrics[distance].distance(v, x) for v, x in zip(vs, X_train[idx])])))
+            #     for idx in candidates
+            # ]
+            candidates = [(int(idx), float(d)) for idx, d in zip(candidates, distances)]
             n_items_processed[0] += 1
             if n_items_processed[0] % 1000 == 0:
                 print(f"Processed {n_items_processed[0]}/{len(X_test)} queries...")
