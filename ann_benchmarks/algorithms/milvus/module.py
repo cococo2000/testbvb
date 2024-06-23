@@ -72,6 +72,17 @@ class Milvus(BaseANN):
         self.batch_latencies = []
         self.reqs = []
 
+    @property
+    def num_entities(self) -> int:
+        """
+        Get number of entities
+        """
+        return self._num_entities
+
+    @num_entities.setter
+    def num_entities(self, value: int) -> None:
+        self._num_entities = value
+
     def start_milvus(self) -> None:
         """
         Start milvus cpu standalone docker compose
@@ -210,6 +221,7 @@ class Milvus(BaseANN):
                     )
             self.collection.insert(entities)
         self.collection.flush()
+        self.num_entities = self.collection.num_entities
         print(f"[Milvus] {self.collection.num_entities} data has been inserted into collection {self.collection_name}!!!")
 
     def load_data(
@@ -464,11 +476,87 @@ class Milvus(BaseANN):
             limit=self.query_topk,
             output_fields=["id"]
         )
-        print(f"[Milvus] Multi vector query results: {results}")
+        # print(f"[Milvus] Multi vector query results: {results}")
         ids = [r.entity.get("id") for r in results[0]]
         distances = [r.distance for r in results[0]]
-        print(f"[Milvus] Multi vector query results: {ids} {distances}")
+        # print(f"[Milvus] Multi vector query results: {ids} {distances}")
         return ids, distances
+
+    def insert(
+        self,
+        embeddings : np.ndarray,
+        labels : np.ndarray | None = None
+    ) -> None:
+        """
+        Single insert data
+
+        Args:
+            embeddings (np.ndarray): embeddings
+            labels (np.ndarray): labels
+
+        Returns:
+            None
+        """
+        num_vectors = embeddings.shape[0] if len(embeddings.shape) == 2 else 1
+        entities = [[self.num_entities]]
+        if num_vectors == 1:
+            entities.append([embeddings.tolist()])
+        else:
+            for j in range(num_vectors):
+                entities.append([embeddings[j]])
+        if labels is not None:
+            for j in range(self.num_labels):
+                entities.append([labels[j]])
+        # print(f"[Milvus] entities: {entities}")
+        self.collection.insert(entities)
+        self.collection.flush()
+        self.num_entities = self.collection.num_entities
+
+    def update(
+        self,
+        index : int,
+        embeddings : np.ndarray,
+        labels : np.ndarray | None = None
+    ) -> None:
+        """
+        Single update data
+
+        Args:
+            index (int): index to update
+            embeddings (np.ndarray): embeddings
+            labels (np.ndarray): labels
+
+        Returns:
+            None
+        """
+        num_vectors = embeddings.shape[0] if len(embeddings.shape) == 2 else 1
+        entities = [[index]]
+        if num_vectors == 1:
+            entities.append([embeddings.tolist()])
+        else:
+            for j in range(num_vectors):
+                entities.append([embeddings[j]])
+        if labels is not None:
+            for j in range(self.num_labels):
+                entities.append([labels[j]])
+        print(f"[Milvus] entities: {entities}")
+        self.collection.upsert(entities)
+        self.collection.flush()
+
+    def delete(
+        self,
+        index : int,
+    ) -> None:
+        """
+        Single delete data
+
+        Args:
+            index (int): index to delete
+
+        Returns:
+            None
+        """
+        self.collection.delete(f"ids in [{index}]")
 
     def done(self) -> None:
         """

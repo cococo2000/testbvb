@@ -223,6 +223,95 @@ def run_individual_query(
     return (attrs, results)
 
 
+def run_individual_insert(
+    algo: BaseANN,
+    X_test: np.array,
+    X_test_label: np.ndarray | None = None
+) -> list:
+    """
+    Run a insert query using the provided algorithm and report the results.
+
+    Args:
+        algo (BaseANN): An instantiated ANN algorithm.
+        X_test (np.array): The testing data.
+        X_test_label (np.array): The labels for the testing data.
+
+    Returns:
+        list: The latencies of the insert queries.
+    """
+    latencies = []
+    if X_test_label is None:
+        for x in X_test:
+            start = time.time()
+            algo.insert(x)
+            latencies.append(time.time() - start)
+    else:
+        for x, labels in zip(X_test, X_test_label):
+            start = time.time()
+            algo.insert(x, labels)
+            latencies.append(time.time() - start)
+    return latencies
+
+
+def run_individual_update(
+    algo: BaseANN,
+    num_entities: int,
+    X_test: np.array,
+    X_test_label: np.ndarray | None = None
+) -> list:
+    """
+    Run a update query using the provided algorithm and report the results.
+
+    Args:
+        algo (BaseANN): An instantiated ANN algorithm.
+        num_entities (int): The number of entities in the database.
+        X_test (np.array): The testing data.
+        X_test_label (np.array): The labels for the testing data.
+
+    Returns:
+        list: The latencies of the update queries.
+    """
+    latencies = []
+    if X_test_label is None:
+        for x in X_test:
+            idx = np.random.randint(num_entities)
+            start = time.time()
+            algo.update(idx, x)
+            latencies.append(time.time() - start)
+    else:
+        for x, labels in zip(X_test, X_test_label):
+            idx = np.random.randint(num_entities)
+            start = time.time()
+            algo.update(idx, x, labels)
+            latencies.append(time.time() - start)
+    return latencies
+
+
+def run_individual_delete(
+    algo: BaseANN,
+    num_entities: int,
+    num_deletes: int
+) -> list:
+    """
+    Run a delete query using the provided algorithm and report the results.
+
+    Args:
+        algo (BaseANN): An instantiated ANN algorithm.
+        num_entities (int): The number of entities in the database.
+        num_deletes (int): The number of delete queries.
+
+    Returns:
+        list: The latencies of the delete queries.
+    """
+    latencies = []
+    delete_idxs = np.random.choice(num_entities, num_deletes, replace=False)
+    for idx in delete_idxs:
+        start = time.time()
+        algo.delete(idx)
+        latencies.append(time.time() - start)
+    return latencies
+
+
 def load_and_transform_dataset(dataset_name: str) -> Tuple:
     """Loads and transforms the dataset.
 
@@ -394,6 +483,7 @@ def run(
                 the set_query_arguments function"""
 
     dataset_type, distance, data = load_and_transform_dataset(dataset_name)
+    X_train_label, X_test_label = None, None
     if dataset_type == "filter-ann":
         X_train, X_train_label, X_test, X_test_label, label_names, label_types, filter_expr_func = data
     elif dataset_type == "mv-ann":
@@ -427,31 +517,37 @@ def run(
 
     query_argument_groups = definition.query_argument_groups or [[]]  # Ensure at least one iteration
 
-    for pos, query_arguments in enumerate(query_argument_groups, 1):
-        print(f"Running query argument group {pos} of {len(query_argument_groups)}...")
-        if query_arguments:
-            algo.set_query_arguments(*query_arguments)
+    # for pos, query_arguments in enumerate(query_argument_groups, 1):
+    #     print(f"Running query argument group {pos} of {len(query_argument_groups)}...")
+    #     if query_arguments:
+    #         algo.set_query_arguments(*query_arguments)
 
-        if dataset_type == "ann":
-            descriptor, results = run_individual_query(algo, X_train, X_test, distance, count, run_count, batch)
-        elif dataset_type == "filter-ann":
-            descriptor, results = run_individual_query(algo, X_train, X_test, distance, count, run_count, batch, X_test_label, filter_expr_func)
-        elif dataset_type == "mv-ann":
-            descriptor, results = run_individual_query(algo, X_train, X_test, distance, count, run_count, batch)
-        elif dataset_type == "mm-ann":
-            descriptor, results = run_individual_query(algo, X_train, X_test, distance, count, run_count, batch)
-        else:
-            descriptor, results = run_individual_query(algo, X_train, X_test, distance, count, run_count, batch)
-        descriptor.update({
-            "insert_time": insert_time,
-            "data_size": data_size,
-            "index_time": index_time,
-            "index_size": index_size,
-            "build_time": insert_time + index_time,
-            "algo": definition.algorithm,
-            "dataset": dataset_name
-        })
-        store_results(dataset_name, count, definition, query_arguments, descriptor, results, batch)
+    #     if dataset_type == "ann":
+    #         descriptor, results = run_individual_query(algo, X_train, X_test, distance, count, run_count, batch)
+    #     elif dataset_type == "filter-ann":
+    #         descriptor, results = run_individual_query(algo, X_train, X_test, distance, count, run_count, batch, X_test_label, filter_expr_func)
+    #     elif dataset_type == "mv-ann":
+    #         descriptor, results = run_individual_query(algo, X_train, X_test, distance, count, run_count, batch)
+    #     elif dataset_type == "mm-ann":
+    #         descriptor, results = run_individual_query(algo, X_train, X_test, distance, count, run_count, batch)
+    #     else:
+    #         descriptor, results = run_individual_query(algo, X_train, X_test, distance, count, run_count, batch)
+    #     descriptor.update({
+    #         "insert_time": insert_time,
+    #         "data_size": data_size,
+    #         "index_time": index_time,
+    #         "index_size": index_size,
+    #         "build_time": insert_time + index_time,
+    #         "algo": definition.algorithm,
+    #         "dataset": dataset_name
+    #     })
+    #     store_results(dataset_name, count, definition, query_arguments, descriptor, results, batch)
+
+    insert_latencies = run_individual_insert(algo, X_test, X_test_label)
+    num_entities = algo.num_entities if hasattr(algo, "num_entities") else X_train.shape[0] + X_test.shape[0]
+    update_latencies = run_individual_update(algo, num_entities, X_test, X_test_label)
+    delete_latencies = run_individual_delete(algo, num_entities, len(X_test))
+
     algo.done()
 
 def run_from_cmdline():
