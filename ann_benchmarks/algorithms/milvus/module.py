@@ -77,6 +77,8 @@ class Milvus(BaseANN):
         """
         Get number of entities
         """
+        # self.collection.flush()
+        # self._num_entities = self.collection.num_entities
         return self._num_entities
 
     @num_entities.setter
@@ -509,8 +511,10 @@ class Milvus(BaseANN):
                 entities.append([labels[j]])
         # print(f"[Milvus] entities: {entities}")
         self.collection.insert(entities)
-        self.collection.flush()
-        self.num_entities = self.collection.num_entities
+        # self.collection.flush()
+        # self.num_entities = self.collection.num_entities
+        # print(f"[Milvus] {self.collection.num_entities} data has been inserted into collection {self.collection_name}!!!")
+        self.num_entities += 1
 
     def update(
         self,
@@ -539,9 +543,9 @@ class Milvus(BaseANN):
         if labels is not None:
             for j in range(self.num_labels):
                 entities.append([labels[j]])
-        print(f"[Milvus] entities: {entities}")
+        # print(f"[Milvus] entities: {entities}")
         self.collection.upsert(entities)
-        self.collection.flush()
+        # self.collection.flush()
 
     def delete(
         self,
@@ -556,7 +560,8 @@ class Milvus(BaseANN):
         Returns:
             None
         """
-        self.collection.delete(f"ids in [{index}]")
+        self.collection.delete(f"id in [{index}]")
+        # self.collection.flush()
 
     def done(self) -> None:
         """

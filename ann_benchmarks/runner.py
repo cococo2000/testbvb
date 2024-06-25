@@ -11,13 +11,14 @@ import colors
 import docker
 import numpy as np
 import psutil
+from tqdm import tqdm
 
 from ann_benchmarks.algorithms.base.module import BaseANN
 
 from .definitions import Definition, instantiate_algorithm
 from .datasets import DATASETS, get_dataset
 from .distance import dataset_transform, metrics
-from .results import store_results
+from .results import store_results, store_insert_update_delete_latencies
 
 
 def run_individual_query(
@@ -241,15 +242,19 @@ def run_individual_insert(
     """
     latencies = []
     if X_test_label is None:
-        for x in X_test:
+        for i, x in enumerate(X_test):
             start = time.time()
             algo.insert(x)
             latencies.append(time.time() - start)
+            if i % 1000 == 0:
+                print(f"Processed {i}/{len(X_test)} inserts...")
     else:
-        for x, labels in zip(X_test, X_test_label):
+        for i, (x, labels) in enumerate(zip(X_test, X_test_label)):
             start = time.time()
             algo.insert(x, labels)
             latencies.append(time.time() - start)
+            if i % 1000 == 0:
+                print(f"Processed {i}/{len(X_test)} inserts...")
     return latencies
 
 
@@ -273,17 +278,21 @@ def run_individual_update(
     """
     latencies = []
     if X_test_label is None:
-        for x in X_test:
+        for i, x in enumerate(X_test):
             idx = np.random.randint(num_entities)
             start = time.time()
             algo.update(idx, x)
             latencies.append(time.time() - start)
+            if i % 1000 == 0:
+                print(f"Processed {i}/{len(X_test)} updates...")
     else:
-        for x, labels in zip(X_test, X_test_label):
+        for i, (x, labels) in enumerate(zip(X_test, X_test_label)):
             idx = np.random.randint(num_entities)
             start = time.time()
             algo.update(idx, x, labels)
             latencies.append(time.time() - start)
+            if i % 1000 == 0:
+                print(f"Processed {i}/{len(X_test)} updates...")
     return latencies
 
 
@@ -305,10 +314,12 @@ def run_individual_delete(
     """
     latencies = []
     delete_idxs = np.random.choice(num_entities, num_deletes, replace=False)
-    for idx in delete_idxs:
+    for i, idx in enumerate(delete_idxs):
         start = time.time()
         algo.delete(idx)
         latencies.append(time.time() - start)
+        if i % 1000 == 0:
+            print(f"Processed {i}/{len(delete_idxs)} deletes...")
     return latencies
 
 
@@ -547,6 +558,7 @@ def run(
     num_entities = algo.num_entities if hasattr(algo, "num_entities") else X_train.shape[0] + X_test.shape[0]
     update_latencies = run_individual_update(algo, num_entities, X_test, X_test_label)
     delete_latencies = run_individual_delete(algo, num_entities, len(X_test))
+    store_insert_update_delete_latencies(dataset_name, count, definition, insert_latencies, update_latencies, delete_latencies)
 
     algo.done()
 

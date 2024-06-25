@@ -39,7 +39,15 @@ def build_result_filepath(dataset_name: Optional[str] = None,
     return os.path.join(*d)
 
 
-def store_results(dataset_name: str, count: int, definition: Definition, query_arguments:Any, attrs, results, batch):
+def store_results(
+    dataset_name: str,
+    count: int,
+    definition: Definition,
+    query_arguments: Any,
+    attrs: dict,
+    results: list,
+    batch: bool = False
+):
     """
     Stores results for an algorithm (and hyperparameters) running against a dataset in a HDF5 file.
 
@@ -69,6 +77,72 @@ def store_results(dataset_name: str, count: int, definition: Definition, query_a
             times[i] = time
             neighbors[i] = [n for n, d in ds] + [-1] * (count - len(ds))
             distances[i] = [d for n, d in ds] + [float("inf")] * (count - len(ds))
+
+
+def build_latencies_filepath(
+    dataset_name: Optional[str] = None, 
+    count: Optional[int] = None, 
+    definition: Optional[Definition] = None, 
+    batch_mode: bool = False
+) -> str:
+    """
+    Constructs the filepath for storing the latencies.
+
+    Args:
+        dataset_name (str, optional): The name of the dataset.
+        count (int, optional): The count of records.
+        definition (Definition, optional): The definition of the algorithm.
+        batch_mode (bool, optional): If True, the batch mode is activated.
+
+    Returns:
+        str: The constructed filepath.
+    """
+    d = ["results"]
+    if dataset_name:
+        d.append(dataset_name)
+    if count:
+        d.append(str(count))
+    if definition:
+        d.append(definition.algorithm + ("-batch" if batch_mode else ""))
+        data = definition.arguments
+        d.append(re.sub(r"\W+", "_", json.dumps(data, sort_keys=True)).strip("_") + ".csv")
+    return os.path.join(*d)
+
+
+def store_insert_update_delete_latencies(
+    dataset_name: str,
+    count: int,
+    definition: Definition,
+    insert_latencies: list,
+    update_latencies: list,
+    delete_latencies: list
+):
+    """
+    Stores insert, update, and delete latencies for an algorithm (and hyperparameters) running against a dataset in a csv file.
+
+    Args:
+        dataset_name (str): The name of the dataset.
+        count (int): The count of records.
+        definition (Definition): The definition of the algorithm.
+        insert_latencies (list): Insert latencies to be stored.
+        update_latencies (list): Update latencies to be stored.
+        delete_latencies (list): Delete latencies to be stored.
+    """
+    filename = build_latencies_filepath(dataset_name, count, definition)
+    directory, _ = os.path.split(filename)
+
+    if not os.path.isdir(directory):
+        os.makedirs(directory)
+
+    with open(filename, "w", encoding="utf-8") as f:
+        f.write("id,insert_latency,update_latency,delete_latency\n")
+        assert len(insert_latencies) == len(update_latencies) == len(delete_latencies)
+        for i, (insert_latency, update_latency, delete_latency) in enumerate(zip(insert_latencies, update_latencies, delete_latencies)):
+            f.write(f"{i},{insert_latency},{update_latency},{delete_latency}\n")
+        avg_insert_latency = sum(insert_latencies) / len(insert_latencies)
+        avg_update_latency = sum(update_latencies) / len(update_latencies)
+        avg_delete_latency = sum(delete_latencies) / len(delete_latencies)
+        f.write(f"average,{avg_insert_latency},{avg_update_latency},{avg_delete_latency}\n")
 
 
 def load_all_results(dataset: Optional[str] = None, 
