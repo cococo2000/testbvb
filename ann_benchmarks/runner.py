@@ -11,7 +11,6 @@ import colors
 import docker
 import numpy as np
 import psutil
-from tqdm import tqdm
 
 from ann_benchmarks.algorithms.base.module import BaseANN
 

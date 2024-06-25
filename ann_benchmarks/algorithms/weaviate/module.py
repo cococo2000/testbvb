@@ -57,6 +57,7 @@ class Weaviate(BaseANN):
         self.collection_name = "test_weaviate"
         self.collection = None
         self.num_labels = 0
+        self.label_names = []
         self.name = f"Weaviate metric:{metric}"
         if self.client.collections.exists(self.collection_name):
             self.client.collections.delete(self.collection_name)
@@ -108,6 +109,7 @@ class Weaviate(BaseANN):
             ) -> None:
         num_labels = len(label_names) if label_names is not None else 0
         self.num_labels = num_labels
+        self.label_names = label_names
         print(f"[weaviate] num_labels: {num_labels}")
         # Create a collection and define properties
         properties = []
@@ -149,6 +151,7 @@ class Weaviate(BaseANN):
             self.collection.data.insert_many(data_objects)
         print(f"[weaviate] load {self.collection.aggregate.over_all()} data successfully!!!")
         print(f"[weaviate] client.collections.list_all(simple=False): {self.client.collections.list_all(simple=False)}")
+        self.num_entities = len(embeddings)
 
     def create_index(self) -> None:
         # Weaviate has already created the index before loading the data
@@ -243,6 +246,74 @@ class Weaviate(BaseANN):
             list[float]: An array of latencies for each query.
         """
         return self.batch_latencies
+
+    def insert(
+        self,
+        embeddings : np.ndarray,
+        labels : np.ndarray | None = None
+    ) -> None:
+        """
+        Single insert data
+
+        Args:
+            embeddings (np.ndarray): embeddings
+            labels (np.ndarray): labels
+
+        Returns:
+            None
+        """
+        properties={}
+        if self.num_labels > 0:
+            for k in range(self.num_labels):
+                properties[self.label_names[k]] = int(labels[k])
+        self.collection.data.insert(
+            properties=properties,
+            uuid=uuid.UUID(int=self.num_entities),
+            vector=embeddings.tolist(),
+        )
+        self.num_entities += 1
+
+    def update(
+        self,
+        index : int,
+        embeddings : np.ndarray,
+        labels : np.ndarray | None = None
+    ) -> None:
+        """
+        Single update data
+
+        Args:
+            index (int): index to update
+            embeddings (np.ndarray): embeddings
+            labels (np.ndarray): labels
+
+        Returns:
+            None
+        """
+        properties = {}
+        if self.num_labels > 0:
+            for k in range(self.num_labels):
+                properties[self.label_names[k]] = int(labels[k])
+        self.collection.data.update(
+            properties=properties,
+            uuid=uuid.UUID(int=index),
+            vector=embeddings.tolist(),
+        )
+
+    def delete(
+        self,
+        index: int,
+    ) -> None:
+        """
+        Single delete data
+
+        Args:
+            index (int): index to delete
+
+        Returns:
+            None
+        """
+        self.collection.data.delete_by_id(uuid.UUID(int=index))
 
     def done(self):
         self.client.close()

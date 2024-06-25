@@ -50,6 +50,7 @@ class Qdrant(BaseANN):
         self.client = QdrantClient(url="http://localhost:6333", timeout=10)
         print("[qdrant] client connected successfully!!!")
         self.num_labels = 0
+        self.label_names = []
         self.load_batch_size = 1000
         self.query_batch_size = 100
         if self.client.collection_exists(self._collection_name):
@@ -113,6 +114,7 @@ class Qdrant(BaseANN):
         dimensions = embeddings.shape[1]
         num_labels = len(label_names) if label_names is not None else 0
         self.num_labels = num_labels
+        self.label_names = label_names
         print(f"[qdrant] load data with {num_labels} labels!!!")
         self.client.create_collection(
             collection_name=self._collection_name,
@@ -158,6 +160,7 @@ class Qdrant(BaseANN):
                 print(f"[qdrant] Indexed vectors: {collection_info.indexed_vectors_count}")
                 print(f"[qdrant] Collection status: {collection_info.status}")
                 break
+        self.num_entities = len(embeddings)
 
     def create_index(self):
         """ Qdrant has already created index during data upload """
@@ -371,3 +374,90 @@ class Qdrant(BaseANN):
         print("[qdrant] collection deleted successfully!!!")
         self.client.close()
         self.stop_container()
+
+    def insert(
+        self,
+        embeddings : np.ndarray,
+        labels : np.ndarray | None = None
+    ) -> None:
+        """
+        Single insert data
+
+        Args:
+            embeddings (np.ndarray): embeddings
+            labels (np.ndarray): labels
+
+        Returns:
+            None
+        """
+        payload = {}
+        if self.num_labels > 0:
+            assert len(labels) == self.num_labels
+            for i in range(self.num_labels):
+                payload[self.label_names[i]] = int(labels[i])
+        point = PointStruct(
+            id=self.num_entities,
+            vector=embeddings,
+            payload=payload
+        )
+        self.client.upsert(
+            collection_name=self._collection_name,
+            points=[point],
+            wait=True
+        )
+        self.num_entities += 1
+
+    def update(
+        self,
+        index : int,
+        embeddings : np.ndarray,
+        labels : np.ndarray | None = None
+    ) -> None:
+        """
+        Single update data
+
+        Args:
+            index (int): index to update
+            embeddings (np.ndarray): embeddings
+            labels (np.ndarray): labels
+
+        Returns:
+            None
+        """
+        payload = {}
+        if self.num_labels > 0:
+            assert len(labels) == self.num_labels
+            for i in range(self.num_labels):
+                payload[self.label_names[i]] = int(labels[i])
+        point = PointStruct(
+            id=index,
+            vector=embeddings,
+            payload=payload
+        )
+        self.client.upsert(
+            collection_name=self._collection_name,
+            points=[point],
+            wait=True
+        )
+
+    def delete(
+        self,
+        index: int,
+    ) -> None:
+        """
+        Single delete data
+
+        Args:
+            index (int): index to delete
+
+        Returns:
+            None
+        """
+        # print(f"[qdrant] delete index: {index}")
+        self.client.delete(
+            collection_name=self._collection_name,
+            points_selector=models.PointIdsList(
+                points=[int(index)]
+            ),
+            wait=True
+        )

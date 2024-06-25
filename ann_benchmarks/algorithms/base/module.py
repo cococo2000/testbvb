@@ -10,6 +10,17 @@ class BaseANN(object):
     Base class/interface for Approximate Nearest Neighbors (ANN) algorithms used in benchmarking.
     """
 
+    @property
+    def num_entities(self) -> int:
+        """
+        Get number of entities
+        """
+        return self._num_entities
+
+    @num_entities.setter
+    def num_entities(self, value: int) -> None:
+        self._num_entities = value
+
     def done(self) -> None:
         """Clean up BaseANN once it is finished being used."""
 
@@ -106,6 +117,54 @@ class BaseANN(object):
             dict: A dictionary of additional attributes.
         """
         return {}
+
+    def insert(
+        self,
+        embeddings : np.ndarray,
+        labels : np.ndarray | None = None
+    ) -> None:
+        """
+        Single insert data
+
+        Args:
+            embeddings (np.ndarray): embeddings
+            labels (np.ndarray): labels
+
+        Returns:
+            None
+        """
+
+    def update(
+        self,
+        index : int,
+        embeddings : np.ndarray,
+        labels : np.ndarray | None = None
+    ) -> None:
+        """
+        Single update data
+
+        Args:
+            index (int): index to update
+            embeddings (np.ndarray): embeddings
+            labels (np.ndarray): labels
+
+        Returns:
+            None
+        """
+
+    def delete(
+        self,
+        index: int,
+    ) -> None:
+        """
+        Single delete data
+
+        Args:
+            index (int): index to delete
+
+        Returns:
+            None
+        """
 
     def __str__(self) -> str:
         return self.name

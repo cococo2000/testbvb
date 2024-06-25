@@ -70,20 +70,7 @@ class Milvus(BaseANN):
         self.batch_query_exprs = None
         self.batch_results = []
         self.batch_latencies = []
-        self.reqs = []
-
-    @property
-    def num_entities(self) -> int:
-        """
-        Get number of entities
-        """
-        # self.collection.flush()
-        # self._num_entities = self.collection.num_entities
-        return self._num_entities
-
-    @num_entities.setter
-    def num_entities(self, value: int) -> None:
-        self._num_entities = value
+        self.requests = []
 
     def start_milvus(self) -> None:
         """
@@ -453,9 +440,9 @@ class Milvus(BaseANN):
             n (int): The number of nearest neighbors to return for each query.
         """
         self.query_topk = n
-        self.reqs.clear()
+        self.requests.clear()
         for i, v in enumerate(vectors):
-            self.reqs.append(
+            self.requests.append(
                 AnnSearchRequest(
                     data=[v],
                     anns_field=f"vector{i}",
@@ -473,7 +460,7 @@ class Milvus(BaseANN):
             list[int]: An array of indices representing the nearest neighbors.
         """
         results = self.collection.hybrid_search(
-            reqs=self.reqs,
+            reqs=self.requests,
             rerank=self.rerank,
             limit=self.query_topk,
             output_fields=["id"]
