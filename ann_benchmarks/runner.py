@@ -527,31 +527,31 @@ def run(
 
     query_argument_groups = definition.query_argument_groups or [[]]  # Ensure at least one iteration
 
-    # for pos, query_arguments in enumerate(query_argument_groups, 1):
-    #     print(f"Running query argument group {pos} of {len(query_argument_groups)}...")
-    #     if query_arguments:
-    #         algo.set_query_arguments(*query_arguments)
+    for pos, query_arguments in enumerate(query_argument_groups, 1):
+        print(f"Running query argument group {pos} of {len(query_argument_groups)}...")
+        if query_arguments:
+            algo.set_query_arguments(*query_arguments)
 
-    #     if dataset_type == "ann":
-    #         descriptor, results = run_individual_query(algo, X_train, X_test, distance, count, run_count, batch)
-    #     elif dataset_type == "filter-ann":
-    #         descriptor, results = run_individual_query(algo, X_train, X_test, distance, count, run_count, batch, X_test_label, filter_expr_func)
-    #     elif dataset_type == "mv-ann":
-    #         descriptor, results = run_individual_query(algo, X_train, X_test, distance, count, run_count, batch)
-    #     elif dataset_type == "mm-ann":
-    #         descriptor, results = run_individual_query(algo, X_train, X_test, distance, count, run_count, batch)
-    #     else:
-    #         descriptor, results = run_individual_query(algo, X_train, X_test, distance, count, run_count, batch)
-    #     descriptor.update({
-    #         "insert_time": insert_time,
-    #         "data_size": data_size,
-    #         "index_time": index_time,
-    #         "index_size": index_size,
-    #         "build_time": insert_time + index_time,
-    #         "algo": definition.algorithm,
-    #         "dataset": dataset_name
-    #     })
-    #     store_results(dataset_name, count, definition, query_arguments, descriptor, results, batch)
+        if dataset_type == "ann":
+            descriptor, results = run_individual_query(algo, X_train, X_test, distance, count, run_count, batch)
+        elif dataset_type == "filter-ann":
+            descriptor, results = run_individual_query(algo, X_train, X_test, distance, count, run_count, batch, X_test_label, filter_expr_func)
+        elif dataset_type == "mv-ann":
+            descriptor, results = run_individual_query(algo, X_train, X_test, distance, count, run_count, batch)
+        elif dataset_type == "mm-ann":
+            descriptor, results = run_individual_query(algo, X_train, X_test, distance, count, run_count, batch)
+        else:
+            descriptor, results = run_individual_query(algo, X_train, X_test, distance, count, run_count, batch)
+        descriptor.update({
+            "insert_time": insert_time,
+            "data_size": data_size,
+            "index_time": index_time,
+            "index_size": index_size,
+            "build_time": insert_time + index_time,
+            "algo": definition.algorithm,
+            "dataset": dataset_name
+        })
+        store_results(dataset_name, count, definition, query_arguments, descriptor, results, batch)
 
     insert_latencies = run_individual_insert(algo, X_test, X_test_label)
     num_entities = algo.num_entities if hasattr(algo, "num_entities") else X_train.shape[0] + X_test.shape[0]
